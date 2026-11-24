@@ -162,7 +162,7 @@ function bindSettings() {
 bindSettings();
 for (const b of ['setBtn', 'pSet']) $(b).addEventListener('click', () => openSheet('sSet'));
 for (const b of ['helpBtn', 'pHelp']) $(b).addEventListener('click', () => openSheet('sHelp'));
-const GEST = [['✌️', 'Peace sign, hold 1 s', 'Wakes the remote for 5 s (when the lock is on)'], ['✋', 'Open palm, hold', 'Play or pause'], ['👉', 'Point to your right', 'Skip forward'], ['👈', 'Point to your left', 'Skip back'], ['☝️', 'Point up', 'Faster'], ['👇', 'Point down', 'Slower'], ['👍', 'Thumb up', 'Volume up'], ['👎', 'Thumb down', 'Volume down'], ['✊', 'Fist, hold', 'Mute or unmute']];
+const GEST = [['✌️', 'Peace sign, hold 1 s', 'Wakes the remote for 5 s (when the lock is on)'], ['✋', 'Open palm, hold', 'Play or pause'], ['👉', 'Point to your right', 'Skip forward'], ['👈', 'Point to your left', 'Skip back'], ['☝️', 'Point up', 'Faster'], ['👇', 'Point down', 'Slower'], ['👍', 'Thumb up', 'Volume up'], ['👎', 'Thumb down', 'Volume down'], ['🤟', 'Rock-on sign, hold', 'Loop: start, then end, then off'], ['✊', 'Fist, hold', 'Mute or unmute']];
 $('gestList').innerHTML = GEST.map(g => `<div class="e">${g[0]}</div><div><b>${esc(g[1])}</b><small>${esc(g[2])}</small></div>`).join('');
 
 /* ---------- player ---------- */
@@ -305,6 +305,23 @@ function togglePlay() {
     } else doPlay();
   } else { P.pause(); toast('⏸ Pause'); }
 }
+const fmtT = s => { s = Math.max(0, s || 0); return Math.floor(s / 60) + ':' + (s % 60).toFixed(1).padStart(4, '0'); };
+function nudgeLoop(which, d) {
+  if (!cur || cur.loopA == null) return;
+  const dur = P.dur() || Infinity;
+  if (which === 'a') {
+    const max = cur.loopB != null ? cur.loopB - 0.3 : dur;
+    cur.loopA = Math.max(0, Math.min(max, +(cur.loopA + d).toFixed(2)));
+    if (cur.loopB != null) P.seekTo(cur.loopA);
+    toast('Start ' + fmtT(cur.loopA));
+  } else {
+    if (cur.loopB == null) return;
+    cur.loopB = Math.min(dur, Math.max(cur.loopA + 0.3, +(cur.loopB + d).toFixed(2)));
+    if (d < 0 || P.time() > cur.loopB) P.seekTo(Math.max(cur.loopA, cur.loopB - 1.5)); // hear the new ending
+    toast('End ' + fmtT(cur.loopB));
+  }
+  DB.put(cur); refreshUI(); showControls();
+}
 function seekBy(dir) {
   if (!P.ready()) return;
   const d = P.dur(); P.seekTo(Math.max(0, Math.min(d || Infinity, P.time() + set.skip * dir)));
@@ -320,9 +337,9 @@ function changeRate(dir) {
 }
 function nudgeVol(d) { muted = false; set.vol = Math.max(0, Math.min(1, Math.round((set.vol + d) * 10) / 10)); saveSet(); applyVol(); toast((d > 0 ? '🔊 ' : '🔉 ') + Math.round(set.vol * 100) + '%'); }
 function toggleMute() { muted = !muted; applyVol(); toast(muted ? '🔇 Muted' : '🔊 Sound on'); }
-function loopTap() {
+function loopTap(late = 0) {
   if (!cur || !P.ready()) return;
-  const t = P.time();
+  const t = Math.max(0, P.time() - late * curRate); // a held gesture fires late; step back to when it began
   if (cur.loopA != null && cur.loopB != null) { cur.loopA = cur.loopB = null; toast('Loop off'); }
   else if (cur.loopA != null) {
     if (t <= cur.loopA + 0.5) { cur.loopA = t; toast('Loop start moved'); }
@@ -334,7 +351,8 @@ function loopTap() {
 $('playBtn').addEventListener('click', () => { ensureAudio(); togglePlay(); unlock(); });
 $('rwBtn').addEventListener('click', () => seekBy(-1));
 $('ffBtn').addEventListener('click', () => seekBy(+1));
-$('loopBtn').addEventListener('click', loopTap);
+$('loopBtn').addEventListener('click', () => loopTap());
+$('loopEdit').addEventListener('click', e => { const b = e.target.closest('[data-n]'); if (!b) return; const [w, d] = b.dataset.n.split(','); nudgeLoop(w, +d); });
 $('mirBtn').addEventListener('click', () => { if (!cur) return; cur.mirror = !cur.mirror; $('media').classList.toggle('mirror', cur.mirror); DB.put(cur); refreshUI(); toast(cur.mirror ? 'Mirrored' : 'Normal view'); });
 $('rateBtn').addEventListener('click', () => {
   const box = $('speeds');
@@ -391,6 +409,7 @@ setInterval(() => {
 /* ---------- gestures ---------- */
 const MAP = {
   palm:   { hold: 500, run: togglePlay },
+  loop:   { hold: 600, run: () => loopTap(0.6) },
   fist:   { hold: 700, run: toggleMute },
   right:  { hold: 350, every: 750, run: () => seekBy(+1) },
   left:   { hold: 350, every: 750, run: () => seekBy(-1) },
@@ -413,7 +432,7 @@ function classify(cat, lm) {
     if (Math.abs(vx) > Math.abs(vy) * 1.3 && Math.abs(vx) > 0.05) { let toRight = vx < 0; if (set.flip) toRight = !toRight; return toRight ? 'right' : 'left'; }
     if (Math.abs(vy) > Math.abs(vx) * 1.3 && Math.abs(vy) > 0.05) return vy < 0 ? 'faster' : 'slower';
   }
-  return ({ Open_Palm: 'palm', Closed_Fist: 'fist', Thumb_Up: 'up', Thumb_Down: 'down', Victory: 'wake', Pointing_Up: 'faster' })[cat] || 'none';
+  return ({ Open_Palm: 'palm', Closed_Fist: 'fist', Thumb_Up: 'up', Thumb_Down: 'down', Victory: 'wake', Pointing_Up: 'faster', ILoveYou: 'loop' })[cat] || 'none';
 }
 function handSize(lm) { let x0 = 1, x1 = 0, y0 = 1, y1 = 0; for (const p of lm) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); } return Math.max(x1 - x0, y1 - y0); }
 function step(g, now) {
@@ -440,6 +459,10 @@ function refreshUI(now = performance.now()) {
   const looping = cur && cur.loopA != null && cur.loopB != null, half = cur && cur.loopA != null && cur.loopB == null;
   $('loopBtn').classList.toggle('on', !!looping);
   $('loopTxt').textContent = looping ? 'Loop on' : half ? 'Set end' : 'Loop';
+  $('loopEdit').classList.toggle('hidden', !(looping || half));
+  $('loopEdit').classList.toggle('half', !!half);
+  $('player').classList.toggle('tall', !!(looping || half));
+  if (cur && cur.loopA != null) { $('lA').textContent = fmtT(cur.loopA); $('lB').textContent = cur.loopB != null ? fmtT(cur.loopB) : '—'; }
   const pill = $('pill'), on = awake(now);
   pill.classList.toggle('show', running);
   if (camErr) { pill.textContent = camErr; pill.className = 'pill glass show locked'; }

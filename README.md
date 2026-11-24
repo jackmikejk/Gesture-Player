@@ -16,7 +16,7 @@ Prop your iPad up, step back and practise. Pause, rewind, slow down or loop a se
 - **Hand gestures** through the front camera (see the table below)
 - **Dance-safe lock**: gestures stay off until you hold up ✌️, so dancing doesn't set anything off
 - **Mirror video** so moves match your left and right
-- **Loop a section**: tap Loop at the start, then Set end
+- **Loop a section** to learn steps: tap Loop (or hold 🤟) at the start, then again at the end, and fine-tune each point by half a second
 - **3‑2‑1 countdown** before play
 - **Speed** from 0.3× to 2× with normal pitch
 - **Library** of your videos from Photos, Files or YouTube links; each one remembers its spot, speed, loop and mirror setting
@@ -31,6 +31,7 @@ Prop your iPad up, step back and practise. Pause, rewind, slow down or loop a se
 | 👉 / 👈 Point right / left | Skip forward / back |
 | ☝️ / 👇 Point up / down | Faster / slower |
 | 👍 / 👎 Thumb up / down | Volume up / down |
+| 🤟 Rock-on sign, hold | Loop: set start, then end, then turn off |
 | ✊ Fist, hold | Mute or unmute |
 
 ## Install on iPad or iPhone

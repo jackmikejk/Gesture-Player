@@ -121,6 +121,14 @@ body.playing{overflow:hidden}
 .big{width:62px;height:62px;border-radius:31px;background:#fff;color:#000;display:grid;place-items:center}
 .big:active{transform:scale(.94)}
 .big .i{width:28px;height:28px}
+.loopEdit{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 18px;margin-top:10px;padding-top:10px;border-top:.5px solid rgba(255,255,255,.15)}
+.loopEdit .lg{display:inline-flex;align-items:center;gap:6px}
+.loopEdit b{font-size:13px;color:rgba(255,255,255,.65);font-weight:600;margin-right:2px}
+.loopEdit button{min-width:52px;height:38px;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+.loopEdit button:active{background:rgba(255,255,255,.28)}
+.loopEdit .lt{min-width:60px;text-align:center;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;color:#ff8aa1}
+.loopEdit.half .lgB{opacity:.35;pointer-events:none}
+.player.ui.tall .cam{bottom:calc(env(safe-area-inset-bottom) + 222px)}
 .vol{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.8)}
 .vol input{width:110px;accent-color:#fff}
 .speeds{display:none;position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%);border-radius:18px;padding:8px;gap:4px;flex-wrap:wrap;justify-content:center;width:min(92vw,440px)}
@@ -259,6 +267,10 @@ button.item:active{background:var(--fill)}
         </div>
         <button class="gbtn" id="rateBtn">1×</button>
         <label class="vol"><svg class="i"><use href="#i-vol"/></svg><input type="range" id="volIn" min="0" max="100" value="80" aria-label="Volume"></label>
+      </div>
+      <div class="loopEdit hidden" id="loopEdit" aria-label="Fine-tune loop">
+        <span class="lg"><b>Start</b><button data-n="a,-0.5" aria-label="Start earlier">−0.5</button><span class="lt" id="lA">0:00.0</span><button data-n="a,0.5" aria-label="Start later">+0.5</button></span>
+        <span class="lg lgB"><b>End</b><button data-n="b,-0.5" aria-label="End earlier">−0.5</button><span class="lt" id="lB">—</span><button data-n="b,0.5" aria-label="End later">+0.5</button></span>
       </div>
     </div>
   </div>
