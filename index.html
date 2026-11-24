@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Gesture Player</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* VOICE: calm home-cinema remote, few words, big feedback
+   IDEA: a TV remote you never pick up — the hand is the remote
+   PICTURE: the video itself, full width, with a small mirror of your hand
+   COLOUR and TYPE: near-black screen room, warm white, one amber-free signal teal
+   LAYOUT: player on top, gesture legend under it, setup card first */
+:root{color-scheme:dark;--bg:#0c0d10;--panel:#16181d;--line:#262a31;--ink:#eef0f3;--dim:#9aa1ad;--sig:#3fd6c1;--bad:#ff6f59}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Inter,system-ui,sans-serif;overflow-x:clip}
+h1{font:700 clamp(26px,4vw,38px)/1.05 "Inter Tight",Inter,sans-serif;margin:0}
+.wrap{max-width:1240px;margin:0 auto;padding:clamp(16px,3vw,32px) max(4vw,14px)}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
+.status{font-size:14px;color:var(--dim);display:flex;align-items:center;gap:8px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--line)}
+.dot.on{background:var(--sig);box-shadow:0 0 10px var(--sig)}
+.stage{position:relative;background:#000;border-radius:14px;overflow:hidden;aspect-ratio:16/9;border:1px solid var(--line)}
+.stage video#v{width:100%;height:100%;object-fit:contain;display:block}
+.empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;color:var(--dim)}
+.empty b{display:block;color:var(--ink);font:700 22px/1.2 "Inter Tight",sans-serif;margin-bottom:6px}
+.cam{position:absolute;right:12px;bottom:12px;width:clamp(110px,18%,190px);aspect-ratio:4/3;border-radius:10px;overflow:hidden;border:2px solid var(--line);background:#111}
+.cam.live{border-color:var(--sig)}
+.cam video,.cam canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.toast{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.9);background:rgba(10,12,15,.78);backdrop-filter:blur(8px);padding:18px 26px;border-radius:16px;font:700 28px/1.1 "Inter Tight",sans-serif;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.bar{position:absolute;left:12px;top:12px;font-size:13px;background:rgba(10,12,15,.7);padding:6px 10px;border-radius:8px;color:var(--dim)}
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+button,.file{font:500 16px Inter,sans-serif;min-height:46px;padding:0 18px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+button.primary{background:var(--sig);color:#04241f;border-color:var(--sig)}
+button:focus-visible,.file:focus-within{outline:3px solid var(--sig);outline-offset:2px}
+.file input{position:absolute;opacity:0;width:1px;height:1px}
+.vol{display:flex;align-items:center;gap:10px;margin-left:auto;font-size:14px;color:var(--dim)}
+.meter{width:140px;height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--sig);width:80%;transition:width .15s}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:6px}
+.g{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;transition:border-color .15s,background .15s}
+.g.hit{border-color:var(--sig);background:#13302c}
+.g b{display:block;font:700 17px "Inter Tight",sans-serif}
+.g span{color:var(--dim);font-size:14px}
+.opts{display:flex;flex-wrap:wrap;gap:16px;margin-top:16px;font-size:14px;color:var(--dim)}
+.opts label{display:flex;align-items:center;gap:8px;min-height:44px}
+.opts input{width:22px;height:22px;accent-color:var(--sig)}
+.err{color:var(--bad);font-size:14px;margin-top:8px;min-height:1em}
+@media(max-width:600px){.vol{margin-left:0;width:100%}.toast{font-size:22px}}
+@media(prefers-reduced-motion:reduce){.toast,.meter i{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Gesture Player</h1>
+    <div class="status"><span class="dot" id="dot"></span><span id="stat">Camera off</span></div>
+  </header>
+
+  <div class="stage" id="stage">
+    <video id="v" playsinline preload="metadata"></video>
+    <div class="empty" id="empty"><div><b>Pick a video, then start the camera</b>Your hand becomes the remote. Nothing leaves this iPad.</div></div>
+    <div class="bar" id="seen">Hand: —</div>
+    <div class="cam" id="camBox"><video id="cam" playsinline muted></video><canvas id="ov"></canvas></div>
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <div class="controls">
+    <label class="file">Choose video<input type="file" id="pick" accept="video/*"></label>
+    <button class="primary" id="startCam">Start camera</button>
+    <button id="playBtn">Play / Pause</button>
+    <div class="vol">Volume <div class="meter"><i id="meter"></i></div><span id="volTxt">80%</span></div>
+  </div>
+  <div class="err" id="err"></div>
+
+  <div class="legend">
+    <div class="g" data-g="palm"><b>✋ Open palm, hold</b><span>Play or pause</span></div>
+    <div class="g" data-g="right"><b>👉 Point to your right</b><span>Forward 10 s, repeats while held</span></div>
+    <div class="g" data-g="left"><b>👈 Point to your left</b><span>Back 10 s, repeats while held</span></div>
+    <div class="g" data-g="up"><b>👍 Thumb up</b><span>Volume up, repeats while held</span></div>
+    <div class="g" data-g="down"><b>👎 Thumb down</b><span>Volume down, repeats while held</span></div>
+    <div class="g" data-g="fist"><b>✊ Fist, hold</b><span>Mute or unmute</span></div>
+  </div>
+
+  <div class="opts">
+    <label><input type="checkbox" id="flip"> Swap left / right pointing</label>
+    <label><input type="checkbox" id="showCam" checked> Show camera preview</label>
+    <label>Skip <select id="skip" style="font:16px Inter;min-height:40px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:0 8px"><option>5</option><option selected>10</option><option>15</option><option>30</option></select> seconds</label>
+  </div>
+</div>
+
+<script type="module">
+{
+const $ = id => document.getElementById(id);
+const v = $('v'), cam = $('cam'), ov = $('ov'), octx = ov.getContext('2d');
+let recognizer = null, running = false, lastT = -1;
+let actx = null, gain = null, vol = 0.8, muted = false;
+
+const toast = (() => { let t; return msg => { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(t); t = setTimeout(() => el.classList.remove('show'), 700); }; })();
+const err = m => $('err').textContent = m || '';
+
+/* ---------- audio: iPad Safari ignores video.volume, so route through Web Audio ---------- */
+function ensureAudio() {
+  if (actx) { actx.resume(); return; }
+  try {
+    actx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = actx.createMediaElementSource(v);
+    gain = actx.createGain();
+    src.connect(gain).connect(actx.destination);
+    applyVol();
+  } catch (e) { actx = null; }
+}
+function applyVol() {
+  const g = muted ? 0 : vol;
+  if (gain) gain.gain.value = g;
+  try { v.volume = g; } catch (e) {}
+  $('meter').style.width = (g * 100) + '%';
+  $('volTxt').textContent = muted ? 'Muted' : Math.round(vol * 100) + '%';
+}
+applyVol();
+
+/* ---------- player actions ---------- */
+const hasVideo = () => !!v.currentSrc;
+async function togglePlay() {
+  if (!hasVideo()) return toast('Pick a video first');
+  ensureAudio();
+  if (v.paused) { try { await v.play(); toast('▶ Play'); } catch (e) { toast('Tap Play once first'); } }
+  else { v.pause(); toast('⏸ Pause'); }
+}
+function seek(dir) {
+  if (!hasVideo()) return;
+  const s = +$('skip').value * dir;
+  v.currentTime = Math.max(0, Math.min((v.duration || 0), v.currentTime + s));
+  toast((dir > 0 ? '⏩ +' : '⏪ −') + Math.abs(s) + ' s');
+}
+function nudgeVol(d) {
+  muted = false; vol = Math.max(0, Math.min(1, Math.round((vol + d) * 10) / 10)); applyVol();
+  toast((d > 0 ? '🔊 ' : '🔉 ') + Math.round(vol * 100) + '%');
+}
+function toggleMute() { muted = !muted; applyVol(); toast(muted ? '🔇 Muted' : '🔊 Sound on'); }
+
+$('pick').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  if (v.src) URL.revokeObjectURL(v.src);
+  v.src = URL.createObjectURL(f); $('empty').style.display = 'none';
+  ensureAudio(); err();
+});
+$('playBtn').addEventListener('click', togglePlay);
+v.addEventListener('click', togglePlay);
+$('showCam').addEventListener('change', e => $('camBox').style.display = e.target.checked ? '' : 'none');
+
+/* ---------- gesture rules: what each gesture does and how long to hold it ---------- */
+const MAP = {
+  palm:  { hold: 450, run: togglePlay },
+  fist:  { hold: 600, run: toggleMute },
+  right: { hold: 300, every: 750, run: () => seek(+1) },
+  left:  { hold: 300, every: 750, run: () => seek(-1) },
+  up:    { hold: 250, every: 380, run: () => nudgeVol(+0.1) },
+  down:  { hold: 250, every: 380, run: () => nudgeVol(-0.1) },
+};
+const NAMES = { palm: 'Open palm', fist: 'Fist', right: 'Pointing right', left: 'Pointing left', up: 'Thumb up', down: 'Thumb down', none: 'No gesture', away: '—' };
+const S = { g: 'away', start: 0, last: 0, fired: false, miss: 0 };
+
+const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+function classify(cat, lm) {
+  // sideways point: index straight, other three curled, finger mostly horizontal
+  const w = lm[0];
+  const ext = (tip, pip) => d(lm[tip], w) > d(lm[pip], w) * 1.12;
+  const curl = (tip, pip) => d(lm[tip], w) < d(lm[pip], w) * 1.05;
+  if (ext(8, 6) && curl(12, 10) && curl(16, 14) && curl(20, 18)) {
+    const vx = lm[8].x - lm[5].x, vy = lm[8].y - lm[5].y;
+    if (Math.abs(vx) > Math.abs(vy) * 1.3 && Math.abs(vx) > 0.05) {
+      // front camera frames are un-mirrored: pointing to your right moves the tip toward image-left
+      let toRight = vx < 0;
+      if ($('flip').checked) toRight = !toRight;
+      return toRight ? 'right' : 'left';
+    }
+  }
+  return ({ Open_Palm: 'palm', Closed_Fist: 'fist', Thumb_Up: 'up', Thumb_Down: 'down' })[cat] || 'none';
+}
+
+function step(g, now) {
+  if (g !== S.g) {
+    // short dropouts of the same gesture shouldn't reset the hold timer
+    if (g === 'away' && S.miss < 4) { S.miss++; return; }
+    S.g = g; S.start = now; S.last = 0; S.fired = false; S.miss = 0;
+  } else S.miss = 0;
+  $('seen').textContent = 'Hand: ' + NAMES[g];
+  document.querySelectorAll('.g').forEach(el => el.classList.toggle('hit', el.dataset.g === g));
+  const r = MAP[g]; if (!r) return;
+  const held = now - S.start;
+  if (held < r.hold) return;
+  if (r.every) { if (now - S.last >= r.every) { S.last = now; r.run(); } }
+  else if (!S.fired) { S.fired = true; r.run(); }
+}
+
+function draw(lm) {
+  ov.width = ov.clientWidth * devicePixelRatio; ov.height = ov.clientHeight * devicePixelRatio;
+  octx.clearRect(0, 0, ov.width, ov.height);
+  if (!lm) return;
+  // match object-fit:cover of the preview
+  const vw = cam.videoWidth, vh = cam.videoHeight, s = Math.max(ov.width / vw, ov.height / vh);
+  const ox = (ov.width - vw * s) / 2, oy = (ov.height - vh * s) / 2;
+  octx.fillStyle = '#3fd6c1';
+  for (const p of lm) { octx.beginPath(); octx.arc(ox + p.x * vw * s, oy + p.y * vh * s, 2.5 * devicePixelRatio, 0, 7); octx.fill(); }
+}
+
+/* ---------- camera + MediaPipe ---------- */
+async function startCam() {
+  err();
+  if (running) return;
+  ensureAudio();
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) return err('The camera needs an https:// address. Host this file (see setup notes) and open it in Safari.');
+  $('stat').textContent = 'Loading hand model…';
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+    cam.srcObject = stream; await cam.play();
+    const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
+    const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+    const opts = (delegate) => ({ baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task', delegate }, runningMode: 'VIDEO', numHands: 1 });
+    try { recognizer = await vision.GestureRecognizer.createFromOptions(files, opts('GPU')); }
+    catch (e) { recognizer = await vision.GestureRecognizer.createFromOptions(files, opts('CPU')); }
+    running = true;
+    $('dot').classList.add('on'); $('camBox').classList.add('live');
+    $('stat').textContent = 'Watching for your hand'; $('startCam').textContent = 'Camera on';
+    loop();
+  } catch (e) {
+    $('stat').textContent = 'Camera off';
+    err(e.name === 'NotAllowedError' ? 'Camera permission was refused. Allow it in Safari (aA menu → Website Settings → Camera).' : 'Could not start: ' + (e.message || e));
+  }
+}
+$('startCam').addEventListener('click', startCam);
+
+let lastRun = 0;
+function loop() {
+  if (!running) return;
+  const now = performance.now();
+  // ~15 checks a second is plenty and saves battery
+  if (now - lastRun > 66 && cam.readyState >= 2 && cam.currentTime !== lastT) {
+    lastRun = now; lastT = cam.currentTime;
+    const res = recognizer.recognizeForVideo(cam, now);
+    const lm = res.landmarks?.[0];
+    if (lm) {
+      const top = res.gestures?.[0]?.[0];
+      const cat = top && top.score > 0.55 ? top.categoryName : 'None';
+      step(classify(cat, lm), now);
+    } else step('away', now);
+    draw(lm);
+  }
+  requestAnimationFrame(loop);
+}
+
+document.addEventListener('visibilitychange', () => { if (document.hidden && running) $('stat').textContent = 'Paused while hidden'; else if (running) $('stat').textContent = 'Watching for your hand'; });
+}
+</script>
+</body>
+</html>
