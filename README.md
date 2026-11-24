@@ -1,10 +1,13 @@
-# Gesture Player
+<p align="center">
+  <img src="icon-512.png" alt="Gesture Player logo" width="120">
+</p>
 
-A video player you control with your hands, built for dance practice.
+<h1 align="center">Gesture Player</h1>
 
-**Open it:** https://jackmikejk.github.io/Gesture-Player/
-
-![Gesture Player](og-image.png)
+<p align="center">
+  A video player you control with your hands, built for dance practice.<br>
+  <a href="https://jackmikejk.github.io/Gesture-Player/"><b>Open Gesture Player →</b></a>
+</p>
 
 Prop your iPad up, step back and practise. Pause, rewind, slow down or loop a section with a hand sign instead of walking back to the screen with sweaty hands.
 
