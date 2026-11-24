@@ -679,6 +679,9 @@ async function checkUpdate() {
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
 setInterval(checkUpdate, 10 * 60 * 1000);
 
+/* the test copy at /beta/ says so, so it's never mistaken for the live app */
+if (/\/beta\//.test(location.pathname)) { const t = document.createElement('span'); t.className = 'betaTag'; t.textContent = 'Beta'; document.querySelector('h1').append(' ', t); document.title = 'Gesture Player Beta'; }
+
 /* ---------- start ---------- */
 applyVol(); refreshUI(); loadLibrary(); checkUpdate();
 }

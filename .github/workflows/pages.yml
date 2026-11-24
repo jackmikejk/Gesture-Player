@@ -1,9 +1,10 @@
-# Publishes the site and stamps each deploy with a build id,
-# so installed Home Screen apps can tell when a newer version is live.
+# Publishes the live site from main, and a test copy of dev at /beta/.
+# Each copy is stamped with its commit id so installed Home Screen apps
+# can tell when a newer version is out.
 name: Deploy site
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,14 +20,32 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Stamp build id
+      - name: Get main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main
+      - name: Get dev (if it exists)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: dev
+          path: dev
+      - name: Build site
         run: |
-          V="${GITHUB_SHA::7}"
-          mkdir _site
-          rsync -a --exclude .git --exclude .github --exclude _site ./ _site/
-          sed -i "s/__BUILD__/$V/g" _site/index.html _site/app.js
-          printf '{"v":"%s"}\n' "$V" > _site/version.json
+          stamp() {
+            src="$1"; out="$2"; v="$(git -C "$src" rev-parse --short=7 HEAD)"
+            mkdir -p "$out"
+            rsync -a --exclude .git --exclude .github "$src"/ "$out"/
+            sed -i "s/__BUILD__/$v/g" "$out/index.html" "$out/app.js"
+            printf '{"v":"%s"}\n' "$v" > "$out/version.json"
+          }
+          stamp main _site
+          if [ -d dev/.git ]; then
+            stamp dev _site/beta
+            sed -i 's/"name": "Gesture Player"/"name": "Gesture Player Beta"/; s/"short_name": "Gestures"/"short_name": "GP Beta"/' _site/beta/manifest.webmanifest
+            sed -i 's#<meta name="apple-mobile-web-app-title" content="Gesture Player">#<meta name="apple-mobile-web-app-title" content="GP Beta">#' _site/beta/index.html
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
