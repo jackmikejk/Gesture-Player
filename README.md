@@ -36,7 +36,7 @@ Prop your iPad up, step back and practise. Pause, rewind, slow down or loop a se
 | 👍 / 👎 Thumb up / down | Volume up / down |
 | 🤟 Rock-on sign, hold | Loop: set start, then end, then turn off |
 | ✊ Fist, hold | Mute or unmute |
-| 🙌 Both hands open, hold 1 s | Start or stop recording |
+| 🤗 Arms crossed, hands on shoulders, hold 1 s | Start or stop recording (works from across the room) |
 
 ## Install on iPad or iPhone
 

@@ -194,7 +194,7 @@ function bindSettings() {
 bindSettings();
 for (const b of ['setBtn', 'pSet']) $(b).addEventListener('click', () => openSheet('sSet'));
 for (const b of ['helpBtn', 'pHelp']) $(b).addEventListener('click', () => openSheet('sHelp'));
-const GEST = [['✌️', 'Peace sign, hold 1 s', 'Wakes the remote for 5 s (when the lock is on)'], ['✋', 'Open palm, hold', 'Play or pause'], ['👉', 'Point to your right', 'Skip forward'], ['👈', 'Point to your left', 'Skip back'], ['☝️', 'Point up', 'Faster'], ['👇', 'Point down', 'Slower'], ['👍', 'Thumb up', 'Volume up'], ['👎', 'Thumb down', 'Volume down'], ['🤟', 'Rock-on sign, hold', 'Loop: start, then end, then off'], ['✊', 'Fist, hold', 'Mute or unmute'], ['🙌', 'Both hands open, hold 1 s', 'Start or stop recording']];
+const GEST = [['✌️', 'Peace sign, hold 1 s', 'Wakes the remote for 5 s (when the lock is on)'], ['✋', 'Open palm, hold', 'Play or pause'], ['👉', 'Point to your right', 'Skip forward'], ['👈', 'Point to your left', 'Skip back'], ['☝️', 'Point up', 'Faster'], ['👇', 'Point down', 'Slower'], ['👍', 'Thumb up', 'Volume up'], ['👎', 'Thumb down', 'Volume down'], ['🤟', 'Rock-on sign, hold', 'Loop: start, then end, then off'], ['✊', 'Fist, hold', 'Mute or unmute'], ['🤗', 'Arms crossed, hands on shoulders, hold 1 s', 'Start or stop recording (works from across the room)']];
 $('gestList').innerHTML = GEST.map(g => `<div class="e">${g[0]}</div><div><b>${esc(g[1])}</b><small>${esc(g[2])}</small></div>`).join('');
 
 /* ---------- player ---------- */
@@ -208,12 +208,16 @@ const P = {
   play: async () => { if (mode === 'file') { ensureAudio(); await v.play(); } else yt.playVideo(); },
   pause: () => { wantPlay = false; return mode === 'file' ? v.pause() : yt.pauseVideo(); },
   time: () => mode === 'file' ? v.currentTime : (yt && yt.getCurrentTime ? yt.getCurrentTime() : 0),
-  dur: () => mode === 'file' ? (isFinite(v.duration) ? v.duration : 0) : (yt && yt.getDuration ? yt.getDuration() : 0),
+  dur: () => mode === 'file' ? (isFinite(v.duration) ? v.duration : (v.seekable.length && isFinite(v.seekable.end(v.seekable.length - 1)) ? v.seekable.end(v.seekable.length - 1) : (cur && cur.dur) || 0)) : (yt && yt.getDuration ? yt.getDuration() : 0),
   seekTo: t => mode === 'file' ? (v.currentTime = t) : yt.seekTo(t, true),
   rates: () => { if (mode === 'yt' && yt && yt.getAvailablePlaybackRates) { const r = yt.getAvailablePlaybackRates(); if (r && r.length) return r; } return RATES; },
   setRate: r => { if (mode === 'file') { v.playbackRate = r; v.preservesPitch = true; } else if (yt) yt.setPlaybackRate(r); }
 };
 
+/* iOS: 'playback' gives full-quality speaker sound (and plays on silent);
+   only switch to 'play-and-record' while the mic is recording */
+const audioSession = t => { try { if (navigator.audioSession && navigator.audioSession.type !== t) navigator.audioSession.type = t; } catch (e) {} };
+audioSession('playback');
 function ensureAudio() {
   if (actx) { if (actx.state !== 'running') actx.resume(); return; }
   try {
@@ -279,9 +283,18 @@ function closePlayer() {
   if (pendingUpdate) applyUpdate(pendingUpdate);
 }
 v.addEventListener('loadedmetadata', () => {
-  if (resumeAt) { try { v.currentTime = resumeAt; } catch (e) {} resumeAt = 0; }
-  v.playbackRate = curRate; v.preservesPitch = true;
-  if (cur && !cur.dur) { cur.dur = v.duration; DB.put(cur); }
+  const go = () => {
+    if (resumeAt) { try { v.currentTime = resumeAt; } catch (e) {} resumeAt = 0; }
+    v.playbackRate = curRate; v.preservesPitch = true;
+    if (cur && isFinite(v.duration) && Math.abs((cur.dur || 0) - v.duration) > 0.5) { cur.dur = v.duration; DB.put(cur); }
+    refreshUI();
+  };
+  if (isFinite(v.duration) && v.duration > 0) return go();
+  // recordings (and some song files) don't state their length up front:
+  // jump far ahead once so the browser reads it, then come back
+  const onTU = () => { v.removeEventListener('timeupdate', onTU); try { v.currentTime = 0; } catch (e) {} go(); };
+  v.addEventListener('timeupdate', onTU);
+  try { v.currentTime = 1e101; } catch (e) { v.removeEventListener('timeupdate', onTU); go(); }
 });
 v.addEventListener('play', () => { refreshUI(); showControls(); });
 v.addEventListener('pause', () => { refreshUI(); showControls(); });
@@ -436,6 +449,7 @@ setInterval(() => {
   if (cur.loopA != null && cur.loopB != null && t >= cur.loopB) P.seekTo(cur.loopA);
   if (!dragging && d) { $('seek').value = Math.round(t / d * 1000); $('fill').style.width = (t / d * 100) + '%'; }
   $('tNow').textContent = fmt(t); $('tDur').textContent = fmt(d);
+  if (kindOf(cur) === 'audio') $('npSub').textContent = fmt(t) + ' / ' + fmt(d);
   const band = $('band');
   band.className = 'band';
   if (d && cur.loopA != null) {
@@ -455,8 +469,7 @@ const MAP = {
   faster: { hold: 400, every: 900, run: () => changeRate(+1) },
   slower: { hold: 400, every: 900, run: () => changeRate(-1) },
   up:     { hold: 300, every: 400, run: () => nudgeVol(+0.1) },
-  down:   { hold: 300, every: 400, run: () => nudgeVol(-0.1) },
-  rec:    { hold: 1000, run: () => toggleRec() }
+  down:   { hold: 300, every: 400, run: () => nudgeVol(-0.1) }
 };
 const WAKE_HOLD = 900, AWAKE_MS = 5000;
 const S = { g: 'away', start: 0, last: 0, fired: false, miss: 0 };
@@ -524,6 +537,7 @@ function refreshUI(now = performance.now()) {
 
 /* ---------- camera + MediaPipe ---------- */
 const cam = $('cam'), ov = $('ov'), octx = ov.getContext('2d');
+let poser = null, lastPose = 0, crossSince = 0, crossFired = false, uncrossSince = 0;
 let recognizer = null, running = false, starting = false, lastT = -1, lastRun = 0, wakeLock = null, camErr = '';
 function draw(lm) {
   ov.width = ov.clientWidth * devicePixelRatio; ov.height = ov.clientHeight * devicePixelRatio;
@@ -561,6 +575,13 @@ async function startCam(hi = false) {
       const opts = delegate => ({ baseOptions: { modelAssetPath: model, delegate }, runningMode: 'VIDEO', numHands: 2 });
       try { recognizer = await vision.GestureRecognizer.createFromOptions(files, opts('GPU')); }
       catch (e) { recognizer = await vision.GestureRecognizer.createFromOptions(files, opts('CPU')); }
+      // body pose, for the arms-crossed record gesture
+      let pm = base + 'pose_landmarker_lite.task';
+      try { const r = await fetch(pm, { method: 'HEAD' }); if (!r.ok) throw 0; }
+      catch (e) { pm = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'; }
+      const popts = delegate => ({ baseOptions: { modelAssetPath: pm, delegate }, runningMode: 'VIDEO', numPoses: 1 });
+      try { poser = await vision.PoseLandmarker.createFromOptions(files, popts('GPU')); }
+      catch (e) { try { poser = await vision.PoseLandmarker.createFromOptions(files, popts('CPU')); } catch (x) { poser = null; } }
     } catch (e) { recognizer = null; } // the camera (and recording) still work without hand tracking
     running = true; LS.set('cam', true);
     $('camBox').classList.add('live'); keepAwake(); refreshUI(); loop();
@@ -589,19 +610,40 @@ function loop() {
     try {
       const res = recognizer.recognizeForVideo(cam, now);
       const all = res.landmarks || [], cats = (res.gestures || []).map(g => g && g[0] && g[0].score > 0.6 ? g[0].categoryName : 'None');
-      // use the biggest (closest) hand; both hands open = record
+      // use the biggest (closest) hand
       let i = 0; all.forEach((h, k) => { if (handSize(h) > handSize(all[i])) i = k; });
       const lm = all[i];
-      if (all.length >= 2 && cats[0] === 'Open_Palm' && cats[1] === 'Open_Palm' && Math.min(handSize(all[0]), handSize(all[1])) >= +set.near * 0.8) step('rec', now);
-      else if (lm) step(handSize(lm) < +set.near ? 'far' : classify(cats[i] || 'None', lm), now);
+      if (lm) step(handSize(lm) < +set.near ? 'far' : classify(cats[i] || 'None', lm), now);
       else step('away', now);
       draw(lm);
     } catch (e) {}
+    if (poser && now - lastPose > 200) { lastPose = now; try { checkCross(poser.detectForVideo(cam, now), now); } catch (e) {} }
     refreshUI(now);
   }
   requestAnimationFrame(loop);
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && running) keepAwake(); });
+
+/* arms crossed, each hand on the opposite shoulder, held 1 s = start/stop recording */
+function checkCross(res, now) {
+  const p = res && res.landmarks && res.landmarks[0];
+  let crossed = false;
+  if (p) {
+    const ls = p[11], rs = p[12], sw = dist(ls, rs), vis = q => (q.visibility == null ? 1 : q.visibility) > 0.4;
+    const lw = [p[15], p[17], p[19]], rw = [p[16], p[18], p[20]]; // wrist and hand points
+    const near = (hand, sh) => Math.min(...hand.map(q => dist(q, sh))) < sw * 0.6;
+    crossed = sw > 0.04 && vis(ls) && vis(rs) && near(lw, rs) && near(rw, ls);
+  }
+  if (crossed) {
+    uncrossSince = 0;
+    if (!crossSince) crossSince = now;
+    if (!crossFired && now - crossSince >= 1000 && cur && !sheetOpen && awake(now)) { crossFired = true; awakeUntil = now + AWAKE_MS; toggleRec(); }
+  } else {
+    crossSince = 0;
+    if (!uncrossSince) uncrossSince = now;
+    if (now - uncrossSince > 600) crossFired = false; // arms down before it can fire again
+  }
+}
 
 /* ---------- recording: films you while gestures keep working ---------- */
 let rec = null, recChunks = [], recStart = 0, recDest = null, recBusy = false;
@@ -612,6 +654,7 @@ async function startRec() {
   if (!window.MediaRecorder) return flashErr('Recording isn’t supported on this device');
   recBusy = true; toast('Starting recording…');
   try {
+    if (set.recAudio === 'mic') audioSession('play-and-record');
     if (!running) await startCam(true); else await restartCam(true);
     if (!running || !cam.srcObject) throw new Error('no camera');
     const tracks = [...cam.srcObject.getVideoTracks()];
@@ -629,7 +672,7 @@ async function startRec() {
     toast('● Recording'); refreshUI();
     if (set.teach && cur && P.ready() && P.paused() && !cdTimer) togglePlay();
   } catch (e) {
-    rec = null; flashErr(e && e.name === 'NotAllowedError' ? 'Allow camera and microphone in Settings' : 'Couldn’t start recording');
+    rec = null; audioSession('playback'); flashErr(e && e.name === 'NotAllowedError' ? 'Allow camera and microphone in Settings' : 'Couldn’t start recording');
     if (running) restartCam(false).catch(() => {});
   } finally { recBusy = false; }
 }
@@ -644,6 +687,7 @@ function stopRec(quiet) {
 async function saveRec(r) {
   const type = r.mimeType || (recChunks[0] && recChunks[0].type) || 'video/mp4';
   const blob = new Blob(recChunks, { type }), secs = (Date.now() - recStart) / 1000; recChunks = [];
+  audioSession('playback');
   if (running) restartCam(false).catch(() => {}); // back to the light gesture camera
   if (!blob.size) return toast('Recording was empty');
   const d = new Date(), id = newId('r');
