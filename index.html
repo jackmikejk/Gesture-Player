@@ -198,9 +198,6 @@ button.item:active{background:var(--fill)}
 @keyframes blink{to{visibility:hidden}}
 #recBtn.rec{background:var(--red);color:#fff}
 .cam.live.recording{border-color:var(--red)!important}
-.vstat{color:var(--tint)!important;margin-top:3px}
-.vstat:empty{display:none!important}
-.trig{width:150px;height:36px;border:0;border-radius:9px;background:var(--fill);color:var(--label);font:16px -apple-system,BlinkMacSystemFont,system-ui,sans-serif;text-align:right;padding:0 10px}
 .seg{display:flex;background:var(--fill);border-radius:9px;padding:2px}
 .seg button{flex:1;min-width:44px;height:32px;border-radius:7px;font-size:14px;font-weight:600}
 .seg button.on{background:var(--card);box-shadow:0 2px 6px rgba(0,0,0,.12)}
@@ -349,10 +346,6 @@ button.item:active{background:var(--fill)}
     <div class="item" style="flex-wrap:wrap"><span>Hand must be close<small id="nearTxt"></small></span><input type="range" id="oNear" min="0" max="0.4" step="0.02" aria-label="Hand closeness"></div>
   </div>
   <div class="group">
-    <div class="item"><span>Voice commands<small>Say “<b id="trigShow">Player</b>, stop”. Uses Apple’s speech service.</small><small class="vstat" id="voiceStat"></small></span><label class="sw"><input type="checkbox" id="oVoice"><i></i></label></div>
-    <div class="item"><span>Trigger word</span><input class="trig" id="oTrig" maxlength="20" autocomplete="off" autocapitalize="words" spellcheck="false" aria-label="Trigger word"></div>
-  </div>
-  <div class="group">
     <div class="item"><span>Use back camera<small>Sharper video; the screen faces away from you</small></span><label class="sw"><input type="checkbox" id="oBack"><i></i></label></div>
     <div class="item"><span>Recording sound<small id="recAudioTxt"></small></span><div class="seg" id="oRecAudio"><button data-v="mic">Room</button><button data-v="song">Song</button></div></div>
     <div class="item"><span>Teach mode<small>Recording starts and stops the song too</small></span><label class="sw"><input type="checkbox" id="oTeach"><i></i></label></div>
@@ -363,8 +356,6 @@ button.item:active{background:var(--fill)}
 <div class="scrim" id="sHelp"><div class="sheet" role="dialog" aria-label="Gestures">
   <div class="grab"></div><div class="shead"><b>Gestures</b><button class="done" data-close>Done</button></div>
   <div class="group" style="padding:12px 16px"><div class="gest" id="gestList"></div></div>
-  <h2 style="font-size:17px;margin:0 4px 10px">Voice (turn on in Settings)</h2>
-  <div class="group" style="padding:12px 16px"><div class="gest" id="voiceList"></div></div>
   <p class="foot">Turn the camera on in the player with the camera button. Watching while you dance, the remote stays locked until you show ✌️.</p>
 </div></div>
 

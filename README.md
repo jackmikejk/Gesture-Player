@@ -38,13 +38,6 @@ Prop your iPad up, step back and practise. Pause, rewind, slow down or loop a se
 | ✊ Fist, hold | Mute or unmute |
 | 🤗 Arms crossed, hands on shoulders, hold 1 s | Start or stop recording (works from across the room) |
 
-## Voice commands
-
-Turn on **Voice commands** in Settings, then start each command with the trigger word (default **Player**, and you can rename it):
-“Player, play” · “Player, stop” · “Player, back” · “Player, forward” · “Player, again” · “Player, slower / faster / normal speed” · “Player, louder / quieter / mute” · “Player, loop” · “Player, mirror” · “Player, record / stop recording”.
-
-Voice works best with music on a separate speaker. It uses your browser's speech service (Apple's on iPhone and iPad), so speech may be sent to Apple. Gestures never leave the device.
-
 ## Install on iPad or iPhone
 
 1. Open the link in **Safari**.
@@ -56,7 +49,6 @@ It also works in recent Chrome and Edge on desktop or Android.
 ## Privacy
 
 - **No accounts, no ads, no analytics, no tracking.**
-- **Voice commands are off by default.** When on, your browser's speech service (Apple's on iPhone/iPad) turns speech into text.
 - **The camera never leaves your device.** Hand tracking runs locally in your browser, and no images or video are recorded, stored or uploaded.
 - **Recordings stay on your device** until you choose to save or share them.
 - **Your videos stay on your device.** They're saved in your browser's own storage for this app. Deleting the app or clearing website data removes them, so keep your originals.

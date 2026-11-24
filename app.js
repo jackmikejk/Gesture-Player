@@ -10,7 +10,7 @@ const toast = (() => { let t; return msg => { const el = $('toast'); el.textCont
 
 /* ---------- settings ---------- */
 const LS = { get(k, d) { try { const x = localStorage.getItem('gp4_' + k); return x === null ? d : JSON.parse(x); } catch (e) { return d; } }, set(k, x) { try { localStorage.setItem('gp4_' + k, JSON.stringify(x)); } catch (e) {} } };
-const set = Object.assign({ lock: true, countdown: true, bubble: true, flip: false, skip: 10, near: 0.16, vol: 0.8, back: false, recAudio: 'mic', teach: true, voice: false, trigger: 'Player' }, LS.get('settings', {}));
+const set = Object.assign({ lock: true, countdown: true, bubble: true, flip: false, skip: 10, near: 0.16, vol: 0.8, back: false, recAudio: 'mic', teach: true }, LS.get('settings', {}));
 const saveSet = () => LS.set('settings', set);
 
 /* ---------- storage: IndexedDB, falls back to memory ---------- */
@@ -181,10 +181,6 @@ function bindSettings() {
   const paintRA = () => { ra.forEach(b => b.classList.toggle('on', b.dataset.v === set.recAudio)); $('recAudioTxt').textContent = set.recAudio === 'song' ? 'The song, recorded clean (local songs only)' : 'Your voice, counts and music in the room'; };
   ra.forEach(b => b.onclick = () => { set.recAudio = b.dataset.v; saveSet(); paintRA(); });
   paintRA();
-  $('oVoice').checked = !!set.voice;
-  $('oVoice').onchange = () => { set.voice = $('oVoice').checked; saveSet(); if (set.voice) { srStarts = []; startVoice(); toast('🎙 Say “' + trigName() + ', play”'); } else stopVoice(); };
-  $('oTrig').value = trigName();
-  $('oTrig').onchange = () => { set.trigger = $('oTrig').value.replace(/\s+/g, ' ').trim().slice(0, 20) || 'Player'; $('oTrig').value = set.trigger; saveSet(); renderVoiceHelp(); refreshUI(); };
   for (const [id, k] of Object.entries(sw)) { $(id).checked = !!set[k]; $(id).onchange = () => { set[k] = $(id).checked; saveSet(); refreshUI(); }; }
   const segs = $('oSkip').querySelectorAll('button');
   const paintSeg = () => segs.forEach(b => b.classList.toggle('on', +b.dataset.v === +set.skip));
@@ -277,7 +273,6 @@ async function openItem(id) {
   }
   m.lastPlayed = Date.now(); DB.put(m);
   if (LS.get('cam', false) && !running) startCam();
-  if (set.voice) { srStarts = []; startVoice(); }
   refreshUI(); showControls();
 }
 function closePlayer() {
@@ -442,7 +437,6 @@ $('seek').addEventListener('change', () => { const d = P.dur(); if (d) P.seekTo(
 /* touches on the video only bring the controls back; the first tap starts a local video */
 $('shield').addEventListener('click', () => {
   $('speeds').classList.remove('show');
-  if (set.voice && !srOn) { srStarts = []; startVoice(); }
   if (mode === 'file' && !hasPlayed && P.ready() && P.paused()) { ensureAudio(); togglePlay(); unlock(); return; }
   if ($('player').classList.contains('ui') && P.ready() && !P.paused()) { $('player').classList.remove('ui'); return; }
   showControls();
@@ -541,11 +535,6 @@ function refreshUI(now = performance.now()) {
   else if (!set.lock) { pill.textContent = 'Gestures on'; pill.className = 'pill glass' + (running ? ' show' : ''); }
   else if (on) { pill.textContent = '👂 Listening ' + Math.max(1, Math.ceil((awakeUntil - now) / 1000)) + 's'; pill.className = 'pill glass armed' + (running ? ' show' : ''); }
   else { pill.textContent = '🔒 Locked · ✌️ to wake'; pill.className = 'pill glass locked' + (running ? ' show' : ''); }
-  if (srOn) {
-    if (running && !camErr) pill.textContent += ' · 🎙';
-    else if (!running) { pill.textContent = '🎙 Say “' + trigName() + ', …”'; pill.className = 'pill glass'; }
-    pill.classList.add('show');
-  }
   $('camBox').classList.toggle('armed', running && on);
   $('camBox').classList.toggle('hide', !set.bubble && !audio && !rec);
   $('shield').style.pointerEvents = mode === 'yt' && !hasPlayed ? 'none' : 'auto';
@@ -721,83 +710,6 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && rec
 /* broken thumbnails (e.g. offline) fall back to the placeholder */
 document.addEventListener('error', e => { if (e.target && e.target.tagName === 'IMG') e.target.remove(); }, true);
 
-/* ---------- voice commands: "Player, slower" ---------- */
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let sr = null, srOn = false, srHandled = new Set(), srStarts = [];
-const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-const SR_HINT = { 'service-not-allowed': 'Not available here. Turn on Dictation (Settings → General → Keyboard), or try in Safari', 'not-allowed': 'Allow Microphone and Speech Recognition for this site', 'audio-capture': 'Mic is busy (recording with Room sound?)', 'network': 'Voice needs an internet connection', 'language-not-supported': 'Your language isn’t supported for voice' };
-function voiceStatus(t) { const el = $('voiceStat'); if (el) el.textContent = t; }
-function trigName() { return (set.trigger || 'Player').trim() || 'Player'; } // hoisted: settings use it before this point
-const norm = s => ' ' + String(s).toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim() + ' ';
-function again() {
-  if (!P.ready()) return;
-  P.seekTo(cur && cur.loopA != null ? cur.loopA : 0);
-  toast('↺ Again'); if (P.paused() && !cdTimer) togglePlay();
-}
-const VOICE = [ // first match wins, so longer phrases come first
-  [/ (stop|end) record(ing)? /, () => stopRec(), 'stop recording'],
-  [/ (start )?record(ing)? /, () => startRec(), 'record'],
-  [/ (normal|regular) speed | speed normal /, () => { setRate(1); toast('1×'); }, 'normal speed'],
-  [/ slow(er| down)? /, () => changeRate(-1), 'slower'],
-  [/ fast(er)? | speed up /, () => changeRate(+1), 'faster'],
-  [/ (again|repeat|restart|from the top|one more( time)?) /, again, 'again'],
-  [/ (go )?back | rewind /, () => seekBy(-1), 'back'],
-  [/ forward | skip | next /, () => seekBy(+1), 'forward'],
-  [/ unmute /, () => { if (muted) toggleMute(); }, 'unmute'],
-  [/ mute /, () => { if (!muted) toggleMute(); }, 'mute'],
-  [/ louder | volume up /, () => nudgeVol(+0.1), 'louder'],
-  [/ (quieter|softer) | volume down /, () => nudgeVol(-0.1), 'quieter'],
-  [/ loop /, () => loopTap(), 'loop'],
-  [/ mirror /, () => $('mirBtn').click(), 'mirror'],
-  [/ (stop|pause|hold|wait) /, () => { if (cdTimer) { cancelCountdown(); return; } if (P.ready() && !P.paused()) { P.pause(); toast('⏸ Pause'); } }, 'stop'],
-  [/ (play|start|go|resume) /, () => { if (P.ready() && P.paused() && !cdTimer) togglePlay(); }, 'play']
-];
-function onSpeech(e) {
-  const t = norm(trigName()).trim();
-  const re = new RegExp(' ' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' ', 'g');
-  for (let i = e.resultIndex; i < e.results.length; i++) {
-    const text = norm(e.results[i][0].transcript);
-    let m, k = -1; re.lastIndex = 0; while ((m = re.exec(text))) { k = m.index + m[0].length - 1; re.lastIndex = m.index + 1; }
-    if (k < 0) continue;
-    const cmd = ' ' + text.slice(k).trim() + ' ';
-    const hit = VOICE.find(([rx]) => rx.test(cmd)); if (!hit) continue;
-    const key = i + '|' + k + '|' + hit[2]; // act once, even as more words arrive for the same phrase
-    if (srHandled.has(key)) continue; srHandled.add(key);
-    if (!cur || sheetOpen) continue; // only in the player
-    toast('🎙 ' + hit[2]); hit[1]();
-  }
-}
-function startVoice() {
-  if (srOn || !set.voice) return;
-  if (!SR) { voiceStatus('Not supported in this browser'); return flashErr('Voice commands aren’t supported in this browser'); }
-  const now = Date.now(); srStarts = srStarts.filter(x => now - x < 15000); srStarts.push(now);
-  if (srStarts.length > 14) { voiceStatus('Paused — tap the video to resume'); flashErr('Voice paused — tap the video to resume'); return; } // stop a restart loop
-  srOn = true;
-  try {
-    // iPhone/iPad: one phrase per session works far more reliably than continuous mode; we restart after each
-    sr = new SR(); sr.continuous = !isIOS; sr.interimResults = true; sr.lang = navigator.language || 'en-US';
-    sr.onstart = () => { srHandled.clear(); voiceStatus('Listening for “' + trigName() + ', …”'); };
-    sr.onresult = e => { const r = e.results[e.results.length - 1]; if (r) voiceStatus('Heard: “' + r[0].transcript.trim() + '”'); onSpeech(e); };
-    sr.onerror = e => {
-      if (e.error === 'no-speech' || e.error === 'aborted') return;
-      const hint = SR_HINT[e.error] || ('Voice error: ' + e.error);
-      voiceStatus(hint);
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { srStarts = Array(20).fill(Date.now()); flashErr(hint); }
-    };
-    sr.onend = () => { sr = null; srOn = false; if (set.voice && !document.hidden) setTimeout(startVoice, 300); refreshUI(); };
-    sr.start();
-  } catch (e) { srOn = false; sr = null; }
-  refreshUI();
-}
-function stopVoice() { set.voice && (srStarts = []); srOn = false; if (sr) { const s = sr; sr = null; s.onend = null; try { s.abort(); } catch (e) {} } refreshUI(); }
-document.addEventListener('visibilitychange', () => { if (document.hidden) { if (srOn) { srOn = false; if (sr) { sr.onend = null; try { sr.abort(); } catch (e) {} sr = null; } } } else if (set.voice) startVoice(); });
-const VLIST = [['▶️', 'play', 'Play (with the 3‑2‑1)'], ['⏸', 'stop', 'Pause'], ['⏪', 'back', 'Skip back'], ['⏩', 'forward', 'Skip forward'], ['🔁', 'again', 'Back to the loop start (or the beginning) and play'], ['🐢', 'slower · faster · normal speed', 'Change speed'], ['🔊', 'louder · quieter · mute', 'Volume'], ['🤟', 'loop', 'Set loop start, then end, then off'], ['🪞', 'mirror', 'Flip the video'], ['⏺', 'record · stop recording', 'Recording']];
-function renderVoiceHelp() {
-  const n = trigName();
-  $('trigShow').textContent = n;
-  $('voiceList').innerHTML = VLIST.map(x => `<div class="e">${x[0]}</div><div><b>“${esc(n)}, ${esc(x[1])}”</b><small>${esc(x[2])}</small></div>`).join('');
-}
-
 /* ---------- updates: installed apps pick up new versions by themselves ---------- */
 const BUILD = '__BUILD__';
 let pendingUpdate = null;
@@ -820,6 +732,5 @@ setInterval(checkUpdate, 10 * 60 * 1000);
 if (/\/beta\//.test(location.pathname)) { const t = document.createElement('span'); t.className = 'betaTag'; t.textContent = 'Beta'; document.querySelector('h1').append(' ', t); document.title = 'Gesture Player Beta'; }
 
 /* ---------- start ---------- */
-renderVoiceHelp();
 applyVol(); refreshUI(); loadLibrary(); checkUpdate();
 }
