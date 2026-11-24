@@ -4,53 +4,79 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Gesture Player</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 <style>
-/* VOICE: calm home-cinema remote, few words, big feedback
-   IDEA: a TV remote you never pick up — the hand is the remote
+/* VOICE: calm home-cinema remote for a dance practice room
+   IDEA: a remote you never pick up — wake it with ✌️, then your hand is the remote
    PICTURE: the video itself, full width, with a small mirror of your hand
-   COLOUR and TYPE: near-black screen room, warm white, one amber-free signal teal
-   LAYOUT: player on top, gesture legend under it, setup card first */
+   COLOUR and TYPE: near-black room, warm white, one teal signal, coral for locked
+   LAYOUT: player on top, controls, then the gesture legend and settings */
 :root{color-scheme:dark;--bg:#0c0d10;--panel:#16181d;--line:#262a31;--ink:#eef0f3;--dim:#9aa1ad;--sig:#3fd6c1;--bad:#ff6f59}
 *{box-sizing:border-box;min-width:0}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Inter,system-ui,sans-serif;overflow-x:clip}
 h1{font:700 clamp(26px,4vw,38px)/1.05 "Inter Tight",Inter,sans-serif;margin:0}
+h2{font:700 18px "Inter Tight",sans-serif;margin:22px 0 10px}
 .wrap{max-width:1240px;margin:0 auto;padding:clamp(16px,3vw,32px) max(4vw,14px)}
 header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
 .status{font-size:14px;color:var(--dim);display:flex;align-items:center;gap:8px}
 .dot{width:10px;height:10px;border-radius:50%;background:var(--line)}
 .dot.on{background:var(--sig);box-shadow:0 0 10px var(--sig)}
 .stage{position:relative;background:#000;border-radius:14px;overflow:hidden;aspect-ratio:16/9;border:1px solid var(--line)}
-.stage video#v{width:100%;height:100%;object-fit:contain;display:block}
+body.cinema{overflow:hidden}
+body.cinema .stage{position:fixed;inset:0;z-index:50;width:100vw;height:100vh;height:100dvh;aspect-ratio:auto;border-radius:0;border:0}
+.shield{position:absolute;inset:0;display:none;z-index:1}
+body.tlock .shield.on{display:block}
+.hud,#fsExit,.cam,.toast{z-index:2}
+#v,#ytWrap,#ytWrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+#v{object-fit:contain;display:none}
+#ytWrap{display:none}
 .empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;color:var(--dim)}
 .empty b{display:block;color:var(--ink);font:700 22px/1.2 "Inter Tight",sans-serif;margin-bottom:6px}
-.cam{position:absolute;right:12px;bottom:12px;width:clamp(110px,18%,190px);aspect-ratio:4/3;border-radius:10px;overflow:hidden;border:2px solid var(--line);background:#111}
-.cam.live{border-color:var(--sig)}
+.cam{position:absolute;right:12px;bottom:56px;width:clamp(110px,18%,190px);aspect-ratio:4/3;border-radius:10px;overflow:hidden;border:2px solid var(--line);background:#111;pointer-events:none}
+.cam.live{border-color:var(--bad)}
+.cam.live.armed{border-color:var(--sig)}
 .cam video,.cam canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
-.toast{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.9);background:rgba(10,12,15,.78);backdrop-filter:blur(8px);padding:18px 26px;border-radius:16px;font:700 28px/1.1 "Inter Tight",sans-serif;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;white-space:nowrap}
+.hud{position:absolute;left:12px;top:12px;display:flex;flex-wrap:wrap;gap:6px;pointer-events:none}
+.chip{font-size:13px;background:rgba(10,12,15,.75);padding:6px 10px;border-radius:8px;color:var(--dim);white-space:nowrap}
+.chip.lock{color:var(--bad)}.chip.armed{color:#04241f;background:var(--sig)}
+.chip.rate{color:var(--ink)}
+.toast{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.9);background:rgba(10,12,15,.8);backdrop-filter:blur(8px);padding:18px 26px;border-radius:16px;font:700 28px/1.1 "Inter Tight",sans-serif;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
-.bar{position:absolute;left:12px;top:12px;font-size:13px;background:rgba(10,12,15,.7);padding:6px 10px;border-radius:8px;color:var(--dim)}
-.controls{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
-button,.file{font:500 16px Inter,sans-serif;min-height:46px;padding:0 18px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+#fsExit{position:absolute;right:12px;top:12px;display:none}
+body.cinema #fsExit{display:inline-flex}
+#fsExit.holding{background:var(--bad);border-color:var(--bad);color:#2a0c07}
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 0;align-items:center}
+button,.file{font:500 16px Inter,sans-serif;min-height:46px;padding:0 16px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
 button.primary{background:var(--sig);color:#04241f;border-color:var(--sig)}
-button:focus-visible,.file:focus-within{outline:3px solid var(--sig);outline-offset:2px}
+button.stop{background:#3a1d18;border-color:var(--bad);color:#ffd9d2}
+button:focus-visible,.file:focus-within,input:focus-visible,select:focus-visible{outline:3px solid var(--sig);outline-offset:2px}
 .file input{position:absolute;opacity:0;width:1px;height:1px}
+.link{display:flex;gap:8px;flex:1 1 320px}
+.link input{flex:1;font:16px Inter,sans-serif;min-height:46px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+.speed{display:inline-flex;align-items:center;gap:6px}
+.speed button{width:46px;padding:0;justify-content:center;font-size:22px}
+.speed output{min-width:58px;text-align:center;font:700 18px "Inter Tight",sans-serif}
 .vol{display:flex;align-items:center;gap:10px;margin-left:auto;font-size:14px;color:var(--dim)}
-.meter{width:140px;height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.meter{width:120px;height:8px;border-radius:4px;background:var(--line);overflow:hidden}
 .meter i{display:block;height:100%;background:var(--sig);width:80%;transition:width .15s}
-.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:6px}
-.g{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;transition:border-color .15s,background .15s}
+.err{color:var(--bad);font-size:14px;margin-top:10px;min-height:1.3em}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.g{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;transition:border-color .15s,background .15s}
 .g.hit{border-color:var(--sig);background:#13302c}
+.g.wake{border-color:#2e5e57}
 .g b{display:block;font:700 17px "Inter Tight",sans-serif}
 .g span{color:var(--dim);font-size:14px}
-.opts{display:flex;flex-wrap:wrap;gap:16px;margin-top:16px;font-size:14px;color:var(--dim)}
-.opts label{display:flex;align-items:center;gap:8px;min-height:44px}
-.opts input{width:22px;height:22px;accent-color:var(--sig)}
-.err{color:var(--bad);font-size:14px;margin-top:8px;min-height:1em}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:4px 20px;font-size:15px;color:var(--dim)}
+.opts label{display:flex;align-items:center;gap:10px;min-height:46px}
+.opts input[type=checkbox]{width:22px;height:22px;accent-color:var(--sig);flex:none}
+.opts input[type=range]{flex:1;accent-color:var(--sig)}
+.opts select{font:16px Inter;min-height:40px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:0 8px}
+.note{font-size:14px;color:var(--dim);margin-top:14px;max-width:70ch}
 @media(max-width:600px){.vol{margin-left:0;width:100%}.toast{font-size:22px}}
-@media(prefers-reduced-motion:reduce){.toast,.meter i{transition:none}}
+@media(prefers-reduced-motion:reduce){.toast,.meter i,.g{transition:none}}
 </style>
 </head>
 <body>
@@ -62,146 +88,305 @@ button:focus-visible,.file:focus-within{outline:3px solid var(--sig);outline-off
 
   <div class="stage" id="stage">
     <video id="v" playsinline preload="metadata"></video>
-    <div class="empty" id="empty"><div><b>Pick a video, then start the camera</b>Your hand becomes the remote. Nothing leaves this iPad.</div></div>
-    <div class="bar" id="seen">Hand: —</div>
+    <div id="ytWrap"><div id="yt"></div></div>
+    <div class="shield" id="shield"></div>
+    <div class="empty" id="empty"><div><b>Pick a video or paste a YouTube link</b>Then start the camera. Hold up ✌️ to wake the remote.</div></div>
+    <div class="hud"><span class="chip" id="seen">Hand: —</span><span class="chip lock" id="armChip">🔒 Locked</span><span class="chip rate" id="rateChip">1×</span></div>
+    <button id="fsExit">Hold to exit</button>
     <div class="cam" id="camBox"><video id="cam" playsinline muted></video><canvas id="ov"></canvas></div>
     <div class="toast" id="toast"></div>
   </div>
 
   <div class="controls">
     <label class="file">Choose video<input type="file" id="pick" accept="video/*"></label>
-    <button class="primary" id="startCam">Start camera</button>
+    <form class="link" id="linkForm"><input id="link" type="url" inputmode="url" placeholder="Paste a YouTube link" autocomplete="off"><button type="submit">Open</button></form>
+  </div>
+  <div class="controls">
+    <button class="primary" id="camBtn">Start camera</button>
     <button id="playBtn">Play / Pause</button>
+    <div class="speed"><button id="slower" aria-label="Slower">−</button><output id="rateOut">1×</output><button id="faster" aria-label="Faster">+</button></div>
+    <button id="fsBtn">Full screen</button>
     <div class="vol">Volume <div class="meter"><i id="meter"></i></div><span id="volTxt">80%</span></div>
   </div>
-  <div class="err" id="err"></div>
+  <div class="err" id="err" role="status"></div>
 
+  <h2>Gestures</h2>
   <div class="legend">
+    <div class="g wake" data-g="wake"><b>✌️ Peace sign, hold 1 s</b><span>Wakes the remote for 5 s. Each command keeps it awake.</span></div>
     <div class="g" data-g="palm"><b>✋ Open palm, hold</b><span>Play or pause</span></div>
-    <div class="g" data-g="right"><b>👉 Point to your right</b><span>Forward 10 s, repeats while held</span></div>
-    <div class="g" data-g="left"><b>👈 Point to your left</b><span>Back 10 s, repeats while held</span></div>
-    <div class="g" data-g="up"><b>👍 Thumb up</b><span>Volume up, repeats while held</span></div>
-    <div class="g" data-g="down"><b>👎 Thumb down</b><span>Volume down, repeats while held</span></div>
+    <div class="g" data-g="right"><b>👉 Point to your right</b><span>Forward, repeats while held</span></div>
+    <div class="g" data-g="left"><b>👈 Point to your left</b><span>Back, repeats while held</span></div>
+    <div class="g" data-g="faster"><b>☝️ Point up</b><span>Faster, repeats while held</span></div>
+    <div class="g" data-g="slower"><b>👇 Point down</b><span>Slower, repeats while held</span></div>
+    <div class="g" data-g="up"><b>👍 Thumb up</b><span>Volume up</span></div>
+    <div class="g" data-g="down"><b>👎 Thumb down</b><span>Volume down</span></div>
     <div class="g" data-g="fist"><b>✊ Fist, hold</b><span>Mute or unmute</span></div>
   </div>
 
+  <h2>Settings</h2>
   <div class="opts">
+    <label><input type="checkbox" id="lock" checked> Dance-safe lock (✌️ to wake)</label>
+    <label>Hand must be close <input type="range" id="near" min="0" max="0.4" step="0.02" value="0.16"><span id="nearTxt"></span></label>
+    <label><input type="checkbox" id="tlock" checked> Ignore touches on the video once it's playing</label>
     <label><input type="checkbox" id="flip"> Swap left / right pointing</label>
     <label><input type="checkbox" id="showCam" checked> Show camera preview</label>
-    <label>Skip <select id="skip" style="font:16px Inter;min-height:40px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:0 8px"><option>5</option><option selected>10</option><option>15</option><option>30</option></select> seconds</label>
+    <label>Skip <select id="skip"><option>3</option><option>5</option><option selected>10</option><option>15</option><option>30</option></select> seconds</label>
   </div>
+  <p class="note">Instagram doesn't let other websites play its videos. Save the reel to your iPad first (Instagram's Download option where it's offered, or Screen Recording), then use Choose video. Your last video, where you were in it and its speed come back automatically if Safari reloads the page. For the steadiest full screen, add this page to your Home Screen (Share → Add to Home Screen) and open it from there. On YouTube, iPad controls volume with its own buttons, so 👍 👎 may only mute and unmute there.</p>
 </div>
 
 <script type="module">
 {
 const $ = id => document.getElementById(id);
 const v = $('v'), cam = $('cam'), ov = $('ov'), octx = ov.getContext('2d');
-let recognizer = null, running = false, lastT = -1;
-let actx = null, gain = null, vol = 0.8, muted = false;
-
-const toast = (() => { let t; return msg => { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(t); t = setTimeout(() => el.classList.remove('show'), 700); }; })();
+const store = {
+  get(k, d) { try { const x = localStorage.getItem('gp_' + k); return x === null ? d : JSON.parse(x); } catch (e) { return d; } },
+  set(k, x) { try { localStorage.setItem('gp_' + k, JSON.stringify(x)); } catch (e) {} }
+};
+const toast = (() => { let t; return msg => { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(t); t = setTimeout(() => el.classList.remove('show'), 800); }; })();
 const err = m => $('err').textContent = m || '';
 
-/* ---------- audio: iPad Safari ignores video.volume, so route through Web Audio ---------- */
+/* ---------- settings, remembered on this iPad ---------- */
+for (const id of ['lock', 'flip', 'showCam', 'tlock']) { $(id).checked = store.get(id, $(id).checked); $(id).addEventListener('change', () => { store.set(id, $(id).checked); refreshUI(); }); }
+$('near').value = store.get('near', 0.16); $('skip').value = store.get('skip', '10');
+$('near').addEventListener('input', () => { store.set('near', +$('near').value); refreshUI(); });
+$('skip').addEventListener('change', () => store.set('skip', $('skip').value));
+
+/* ---------- sources: local file or YouTube ---------- */
+let mode = 'none', yt = null, ytReady = false, ytApi = null, curRate = 1, hasPlayed = false, resume = null;
+let actx = null, gain = null, vol = 0.8, muted = false;
+const RATES = [0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
+
+function showSource(m) {
+  mode = m;
+  v.style.display = m === 'file' ? 'block' : 'none';
+  $('ytWrap').style.display = m === 'yt' ? 'block' : 'none';
+  $('empty').style.display = 'none';
+  if (m !== 'file') v.pause();
+  if (m !== 'yt' && yt && ytReady) yt.pauseVideo();
+  curRate = 1; hasPlayed = false; refreshUI();
+}
+
+/* ---------- memory: the video, your spot and speed survive a Safari reload ---------- */
+const DB = {
+  open: () => new Promise((res, rej) => { const r = indexedDB.open('gp', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }),
+  put: async (k, val) => { const db = await DB.open(); return new Promise((res, rej) => { const t = db.transaction('f', 'readwrite'); t.objectStore('f').put(val, k); t.oncomplete = () => res(); t.onerror = t.onabort = () => rej(t.error); }); },
+  get: async k => { const db = await DB.open(); return new Promise((res, rej) => { const q = db.transaction('f').objectStore('f').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
+};
+function savePos() { if (P.ready()) { try { store.set('pos', { t: P.time() || 0, r: curRate }); } catch (e) {} } }
+setInterval(savePos, 2000);
+addEventListener('pagehide', savePos);
+
+const P = {
+  ready: () => mode === 'file' ? !!v.currentSrc : mode === 'yt' && ytReady,
+  paused: () => mode === 'file' ? v.paused : yt.getPlayerState() !== 1,
+  play: async () => { if (mode === 'file') { ensureAudio(); await v.play(); } else yt.playVideo(); },
+  pause: () => mode === 'file' ? v.pause() : yt.pauseVideo(),
+  time: () => mode === 'file' ? v.currentTime : yt.getCurrentTime(),
+  dur: () => mode === 'file' ? (v.duration || 0) : yt.getDuration(),
+  seekTo: t => mode === 'file' ? (v.currentTime = t) : yt.seekTo(t, true),
+  rates: () => { if (mode === 'yt') { const r = yt.getAvailablePlaybackRates && yt.getAvailablePlaybackRates(); if (r && r.length) return r; } return RATES; },
+  setRate: r => { if (mode === 'file') { v.playbackRate = r; v.preservesPitch = true; } else yt.setPlaybackRate(r); }
+};
+
+function loadFile(f) {
+  if (v.src) URL.revokeObjectURL(v.src);
+  showSource('file'); v.src = URL.createObjectURL(f); ensureAudio();
+}
+$('pick').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  err(); loadFile(f); e.target.value = '';
+  store.set('pos', { t: 0, r: 1 });
+  try { await DB.put('video', f); store.set('src', { type: 'file', name: f.name }); }
+  catch (x) { store.set('src', null); err('This video plays now, but it’s too big to keep for next time. It won’t come back if Safari reloads.'); }
+});
+
+function ytId(u) { const m = u.match(/(?:youtu\.be\/|[?&]v=|\/shorts\/|\/embed\/|\/live\/)([\w-]{11})/); return m && m[1]; }
+function loadYTApi() {
+  if (ytApi) return ytApi;
+  ytApi = new Promise((res, rej) => {
+    window.onYouTubeIframeAPIReady = () => res();
+    const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api';
+    s.onerror = () => { ytApi = null; rej(new Error('Could not load YouTube. Check your connection.')); };
+    document.head.appendChild(s);
+  });
+  return ytApi;
+}
+$('linkForm').addEventListener('submit', async e => {
+  e.preventDefault(); err();
+  const u = $('link').value.trim(); if (!u) return;
+  if (/instagram\.com|instagr\.am/i.test(u)) return err("Instagram doesn't allow its videos to play on other sites. Save the reel to your iPad, then use Choose video.");
+  const id = ytId(u);
+  if (!id) return err("That doesn't look like a YouTube link. For other videos, save them to your iPad and use Choose video.");
+  $('link').blur(); store.set('pos', { t: 0, r: 1 });
+  openYT(id, 0, 1);
+});
+async function openYT(id, t, r) {
+  try { await loadYTApi(); } catch (x) { return err(x.message); }
+  showSource('yt'); curRate = r || 1; store.set('src', { type: 'yt', id });
+  if (yt && ytReady) { yt.cueVideoById({ videoId: id, startSeconds: t || 0 }); toast('Tap ▶ once to start'); refreshUI(); return; }
+  yt = new YT.Player('yt', {
+    videoId: id,
+    playerVars: { playsinline: 1, rel: 0, modestbranding: 1, start: Math.floor(t || 0) },
+    events: {
+      onReady: () => { ytReady = true; applyVol(); refreshUI(); toast('Tap ▶ once to start'); },
+      onStateChange: e => {
+        if (e.data === 1) { hasPlayed = true; if (yt.getPlaybackRate() !== curRate) yt.setPlaybackRate(curRate); refreshUI(); }
+      },
+      onError: () => err("YouTube won't play this video here. The owner may have turned off embedding.")
+    }
+  });
+}
+
+/* ---------- audio: iPad Safari ignores video.volume, so local files go through Web Audio ---------- */
 function ensureAudio() {
   if (actx) { actx.resume(); return; }
   try {
     actx = new (window.AudioContext || window.webkitAudioContext)();
     const src = actx.createMediaElementSource(v);
-    gain = actx.createGain();
-    src.connect(gain).connect(actx.destination);
-    applyVol();
+    gain = actx.createGain(); src.connect(gain).connect(actx.destination); applyVol();
   } catch (e) { actx = null; }
 }
 function applyVol() {
   const g = muted ? 0 : vol;
   if (gain) gain.gain.value = g;
   try { v.volume = g; } catch (e) {}
+  if (yt && ytReady) { if (g === 0) yt.mute(); else { yt.unMute(); yt.setVolume(Math.round(g * 100)); } }
   $('meter').style.width = (g * 100) + '%';
   $('volTxt').textContent = muted ? 'Muted' : Math.round(vol * 100) + '%';
 }
-applyVol();
 
-/* ---------- player actions ---------- */
-const hasVideo = () => !!v.currentSrc;
+/* ---------- actions ---------- */
 async function togglePlay() {
-  if (!hasVideo()) return toast('Pick a video first');
-  ensureAudio();
-  if (v.paused) { try { await v.play(); toast('▶ Play'); } catch (e) { toast('Tap Play once first'); } }
-  else { v.pause(); toast('⏸ Pause'); }
+  if (!P.ready()) return toast('Load a video first');
+  if (P.paused()) { try { await P.play(); toast('▶ Play'); } catch (e) { toast('Tap the video once to start'); } }
+  else { P.pause(); toast('⏸ Pause'); }
 }
 function seek(dir) {
-  if (!hasVideo()) return;
-  const s = +$('skip').value * dir;
-  v.currentTime = Math.max(0, Math.min((v.duration || 0), v.currentTime + s));
+  if (!P.ready()) return;
+  const s = +$('skip').value * dir, d = P.dur();
+  P.seekTo(Math.max(0, Math.min(d || Infinity, P.time() + s)));
   toast((dir > 0 ? '⏩ +' : '⏪ −') + Math.abs(s) + ' s');
 }
-function nudgeVol(d) {
-  muted = false; vol = Math.max(0, Math.min(1, Math.round((vol + d) * 10) / 10)); applyVol();
-  toast((d > 0 ? '🔊 ' : '🔉 ') + Math.round(vol * 100) + '%');
+function changeRate(dir) {
+  if (!P.ready()) return;
+  const list = P.rates();
+  let i = 0; list.forEach((r, k) => { if (Math.abs(r - curRate) < Math.abs(list[i] - curRate)) i = k; });
+  i = Math.max(0, Math.min(list.length - 1, i + dir));
+  curRate = list[i]; P.setRate(curRate); refreshUI();
+  toast((dir > 0 ? '🐇 ' : '🐢 ') + fmtRate(curRate));
 }
+const fmtRate = r => (+r.toFixed(2)) + '×';
+function nudgeVol(d) { muted = false; vol = Math.max(0, Math.min(1, Math.round((vol + d) * 10) / 10)); applyVol(); toast((d > 0 ? '🔊 ' : '🔉 ') + Math.round(vol * 100) + '%'); }
 function toggleMute() { muted = !muted; applyVol(); toast(muted ? '🔇 Muted' : '🔊 Sound on'); }
 
-$('pick').addEventListener('change', e => {
-  const f = e.target.files[0]; if (!f) return;
-  if (v.src) URL.revokeObjectURL(v.src);
-  v.src = URL.createObjectURL(f); $('empty').style.display = 'none';
-  ensureAudio(); err();
-});
 $('playBtn').addEventListener('click', togglePlay);
-v.addEventListener('click', togglePlay);
-$('showCam').addEventListener('change', e => $('camBox').style.display = e.target.checked ? '' : 'none');
+// a tap on the video only starts it the first time; after that touches are ignored (if touch lock is on)
+v.addEventListener('click', () => { if (!hasPlayed || !$('tlock').checked) togglePlay(); });
+v.addEventListener('play', () => { hasPlayed = true; refreshUI(); });
+$('faster').addEventListener('click', () => changeRate(+1));
+$('slower').addEventListener('click', () => changeRate(-1));
+v.addEventListener('loadedmetadata', () => {
+  if (resume) { v.currentTime = Math.min(resume.t || 0, Math.max(0, (v.duration || 0) - 1)); curRate = resume.r || 1; resume = null; refreshUI(); }
+  v.playbackRate = curRate;
+});
 
-/* ---------- gesture rules: what each gesture does and how long to hold it ---------- */
+/* ---------- full screen: the page fills the screen and stays that way until you hold Exit ---------- */
+const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+async function enterFs() {
+  document.body.classList.add('cinema'); store.set('cinema', true); refreshUI();
+  const el = document.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (req && !fsEl()) { try { await req.call(el); } catch (e) {} }
+}
+function exitFs() {
+  document.body.classList.remove('cinema'); store.set('cinema', false); refreshUI();
+  if (fsEl()) { try { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (e) {} }
+}
+$('fsBtn').addEventListener('click', enterFs);
+{
+  const b = $('fsExit'); let t = null;
+  const cancel = () => { clearTimeout(t); t = null; b.classList.remove('holding'); };
+  b.addEventListener('pointerdown', e => { e.preventDefault(); b.classList.add('holding'); t = setTimeout(() => { cancel(); exitFs(); }, 800); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, cancel));
+  b.addEventListener('click', e => { e.preventDefault(); if (!t) toast('Hold to exit'); });
+}
+
+/* ---------- gesture rules ---------- */
 const MAP = {
-  palm:  { hold: 450, run: togglePlay },
-  fist:  { hold: 600, run: toggleMute },
-  right: { hold: 300, every: 750, run: () => seek(+1) },
-  left:  { hold: 300, every: 750, run: () => seek(-1) },
-  up:    { hold: 250, every: 380, run: () => nudgeVol(+0.1) },
-  down:  { hold: 250, every: 380, run: () => nudgeVol(-0.1) },
+  palm:   { hold: 500, run: togglePlay },
+  fist:   { hold: 700, run: toggleMute },
+  right:  { hold: 350, every: 750, run: () => seek(+1) },
+  left:   { hold: 350, every: 750, run: () => seek(-1) },
+  faster: { hold: 400, every: 900, run: () => changeRate(+1) },
+  slower: { hold: 400, every: 900, run: () => changeRate(-1) },
+  up:     { hold: 300, every: 400, run: () => nudgeVol(+0.1) },
+  down:   { hold: 300, every: 400, run: () => nudgeVol(-0.1) },
 };
-const NAMES = { palm: 'Open palm', fist: 'Fist', right: 'Pointing right', left: 'Pointing left', up: 'Thumb up', down: 'Thumb down', none: 'No gesture', away: '—' };
+const WAKE_HOLD = 900, AWAKE_MS = 5000;
+const NAMES = { palm: 'Open palm', fist: 'Fist', right: 'Pointing right', left: 'Pointing left', faster: 'Pointing up', slower: 'Pointing down', up: 'Thumb up', down: 'Thumb down', wake: 'Peace sign', none: 'No gesture', far: 'Too far away', away: '—' };
 const S = { g: 'away', start: 0, last: 0, fired: false, miss: 0 };
+let awakeUntil = 0;
+const locked = () => $('lock').checked;
+const awake = now => !locked() || now < awakeUntil;
 
-const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 function classify(cat, lm) {
-  // sideways point: index straight, other three curled, finger mostly horizontal
   const w = lm[0];
-  const ext = (tip, pip) => d(lm[tip], w) > d(lm[pip], w) * 1.12;
-  const curl = (tip, pip) => d(lm[tip], w) < d(lm[pip], w) * 1.05;
+  const ext = (tip, pip) => dist(lm[tip], w) > dist(lm[pip], w) * 1.12;
+  const curl = (tip, pip) => dist(lm[tip], w) < dist(lm[pip], w) * 1.05;
   if (ext(8, 6) && curl(12, 10) && curl(16, 14) && curl(20, 18)) {
     const vx = lm[8].x - lm[5].x, vy = lm[8].y - lm[5].y;
     if (Math.abs(vx) > Math.abs(vy) * 1.3 && Math.abs(vx) > 0.05) {
       // front camera frames are un-mirrored: pointing to your right moves the tip toward image-left
-      let toRight = vx < 0;
-      if ($('flip').checked) toRight = !toRight;
+      let toRight = vx < 0; if ($('flip').checked) toRight = !toRight;
       return toRight ? 'right' : 'left';
     }
+    if (Math.abs(vy) > Math.abs(vx) * 1.3 && Math.abs(vy) > 0.05) return vy < 0 ? 'faster' : 'slower';
   }
-  return ({ Open_Palm: 'palm', Closed_Fist: 'fist', Thumb_Up: 'up', Thumb_Down: 'down' })[cat] || 'none';
+  return ({ Open_Palm: 'palm', Closed_Fist: 'fist', Thumb_Up: 'up', Thumb_Down: 'down', Victory: 'wake', Pointing_Up: 'faster' })[cat] || 'none';
+}
+function handSize(lm) {
+  let x0 = 1, x1 = 0, y0 = 1, y1 = 0;
+  for (const p of lm) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+  return Math.max(x1 - x0, y1 - y0);
 }
 
 function step(g, now) {
   if (g !== S.g) {
-    // short dropouts of the same gesture shouldn't reset the hold timer
-    if (g === 'away' && S.miss < 4) { S.miss++; return; }
+    if (g === 'away' && S.miss < 4) { S.miss++; return; } // brief tracking dropouts keep the hold timer
     S.g = g; S.start = now; S.last = 0; S.fired = false; S.miss = 0;
   } else S.miss = 0;
-  $('seen').textContent = 'Hand: ' + NAMES[g];
-  document.querySelectorAll('.g').forEach(el => el.classList.toggle('hit', el.dataset.g === g));
-  const r = MAP[g]; if (!r) return;
   const held = now - S.start;
-  if (held < r.hold) return;
-  if (r.every) { if (now - S.last >= r.every) { S.last = now; r.run(); } }
-  else if (!S.fired) { S.fired = true; r.run(); }
+  if (g === 'wake') {
+    if (locked() && !S.fired && held >= WAKE_HOLD) { S.fired = true; awakeUntil = now + AWAKE_MS; toast('👂 Listening'); }
+    return;
+  }
+  const r = MAP[g]; if (!r || !awake(now) || held < r.hold) return;
+  if (r.every) { if (now - S.last >= r.every) { S.last = now; r.run(); awakeUntil = now + AWAKE_MS; } }
+  else if (!S.fired) { S.fired = true; r.run(); awakeUntil = now + AWAKE_MS; }
 }
+
+function refreshUI(now = performance.now()) {
+  const g = S.g, on = awake(now), chip = $('armChip');
+  $('seen').textContent = 'Hand: ' + NAMES[g];
+  if (!locked()) { chip.textContent = 'Lock off'; chip.className = 'chip'; }
+  else if (on) { chip.textContent = '👂 Listening ' + Math.ceil((awakeUntil - now) / 1000) + 's'; chip.className = 'chip armed'; }
+  else { chip.textContent = '🔒 Locked · ✌️ to wake'; chip.className = 'chip lock'; }
+  $('camBox').classList.toggle('armed', on);
+  $('camBox').style.display = $('showCam').checked ? '' : 'none';
+  document.querySelectorAll('.g').forEach(el => el.classList.toggle('hit', running && el.dataset.g === g));
+  $('rateChip').textContent = $('rateOut').textContent = fmtRate(curRate);
+  const n = +$('near').value; $('nearTxt').textContent = n === 0 ? 'Off' : Math.round(n * 100) + '%';
+  document.body.classList.toggle('tlock', $('tlock').checked);
+  $('shield').classList.toggle('on', hasPlayed);
+}
+document.addEventListener('fullscreenchange', () => refreshUI());
+document.addEventListener('webkitfullscreenchange', () => refreshUI());
 
 function draw(lm) {
   ov.width = ov.clientWidth * devicePixelRatio; ov.height = ov.clientHeight * devicePixelRatio;
   octx.clearRect(0, 0, ov.width, ov.height);
-  if (!lm) return;
-  // match object-fit:cover of the preview
+  if (!lm || !cam.videoWidth) return;
   const vw = cam.videoWidth, vh = cam.videoHeight, s = Math.max(ov.width / vw, ov.height / vh);
   const ox = (ov.width - vw * s) / 2, oy = (ov.height - vh * s) / 2;
   octx.fillStyle = '#3fd6c1';
@@ -209,51 +394,78 @@ function draw(lm) {
 }
 
 /* ---------- camera + MediaPipe ---------- */
+let recognizer = null, running = false, starting = false, lastT = -1, lastRun = 0, wakeLock = null;
 async function startCam() {
-  err();
-  if (running) return;
-  ensureAudio();
-  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) return err('The camera needs an https:// address. Host this file (see setup notes) and open it in Safari.');
-  $('stat').textContent = 'Loading hand model…';
+  if (running || starting) return;
+  err(); ensureAudio();
+  if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return err('The camera needs an https:// address. Open this page from your GitHub Pages link.');
+  starting = true; $('camBtn').textContent = 'Starting…'; $('stat').textContent = 'Loading hand model…';
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
     cam.srcObject = stream; await cam.play();
-    const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
-    const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
-    const opts = (delegate) => ({ baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task', delegate }, runningMode: 'VIDEO', numHands: 1 });
-    try { recognizer = await vision.GestureRecognizer.createFromOptions(files, opts('GPU')); }
-    catch (e) { recognizer = await vision.GestureRecognizer.createFromOptions(files, opts('CPU')); }
+    if (!recognizer) {
+      const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
+      const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+      const opts = delegate => ({ baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task', delegate }, runningMode: 'VIDEO', numHands: 1 });
+      try { recognizer = await vision.GestureRecognizer.createFromOptions(files, opts('GPU')); }
+      catch (e) { recognizer = await vision.GestureRecognizer.createFromOptions(files, opts('CPU')); }
+    }
     running = true;
     $('dot').classList.add('on'); $('camBox').classList.add('live');
-    $('stat').textContent = 'Watching for your hand'; $('startCam').textContent = 'Camera on';
+    $('stat').textContent = 'Watching for your hand';
+    $('camBtn').textContent = 'Camera off'; $('camBtn').className = 'stop';
+    try { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } catch (e) { wakeLock = null; }
     loop();
   } catch (e) {
-    $('stat').textContent = 'Camera off';
+    stopCam();
     err(e.name === 'NotAllowedError' ? 'Camera permission was refused. Allow it in Safari (aA menu → Website Settings → Camera).' : 'Could not start: ' + (e.message || e));
-  }
+  } finally { starting = false; }
 }
-$('startCam').addEventListener('click', startCam);
+function stopCam() {
+  running = false;
+  const s = cam.srcObject; if (s) s.getTracks().forEach(t => t.stop());
+  cam.srcObject = null;
+  $('dot').classList.remove('on'); $('camBox').classList.remove('live');
+  $('stat').textContent = 'Camera off';
+  $('camBtn').textContent = 'Start camera'; $('camBtn').className = 'primary';
+  S.g = 'away'; awakeUntil = 0; draw(null); refreshUI();
+  if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+}
+$('camBtn').addEventListener('click', () => running ? stopCam() : startCam());
 
-let lastRun = 0;
 function loop() {
   if (!running) return;
   const now = performance.now();
-  // ~15 checks a second is plenty and saves battery
-  if (now - lastRun > 66 && cam.readyState >= 2 && cam.currentTime !== lastT) {
+  if (now - lastRun > 66 && cam.readyState >= 2 && cam.currentTime !== lastT) { // ~15 checks a second
     lastRun = now; lastT = cam.currentTime;
     const res = recognizer.recognizeForVideo(cam, now);
-    const lm = res.landmarks?.[0];
+    const lm = res.landmarks && res.landmarks[0];
     if (lm) {
-      const top = res.gestures?.[0]?.[0];
-      const cat = top && top.score > 0.55 ? top.categoryName : 'None';
-      step(classify(cat, lm), now);
+      const top = res.gestures && res.gestures[0] && res.gestures[0][0];
+      const cat = top && top.score > 0.6 ? top.categoryName : 'None';
+      step(handSize(lm) < +$('near').value ? 'far' : classify(cat, lm), now);
     } else step('away', now);
     draw(lm);
+    refreshUI(now);
   }
   requestAnimationFrame(loop);
 }
-
-document.addEventListener('visibilitychange', () => { if (document.hidden && running) $('stat').textContent = 'Paused while hidden'; else if (running) $('stat').textContent = 'Watching for your hand'; });
+document.addEventListener('visibilitychange', async () => {
+  if (!document.hidden && running && !wakeLock) { try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
+});
+/* ---------- bring back the last session ---------- */
+async function restore() {
+  if (store.get('cinema', false)) document.body.classList.add('cinema');
+  const src = store.get('src', null), pos = store.get('pos', { t: 0, r: 1 });
+  if (!src) return;
+  if (src.type === 'file') {
+    try { const f = await DB.get('video'); if (!f) return; loadFile(f); resume = pos; toast('Tap the video to continue'); } catch (e) {}
+  } else if (src.type === 'yt') {
+    $('link').value = 'https://youtu.be/' + src.id;
+    openYT(src.id, pos.t, pos.r);
+  }
+}
+refreshUI(); applyVol(); restore();
 }
 </script>
 </body>
