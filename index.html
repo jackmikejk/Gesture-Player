@@ -74,8 +74,7 @@ h2{font-size:22px;font-weight:700;margin:4px 0 12px;letter-spacing:.35px}
 .more{width:36px;height:36px;border-radius:18px;display:grid;place-items:center;color:var(--sec);margin-top:-6px}
 .more:active{background:var(--fill)}
 .empty{text-align:center;padding:70px 20px;color:var(--sec)}
-.empty .art{width:120px;height:120px;margin:0 auto 18px;border-radius:28px;background:linear-gradient(160deg,var(--tint),#ff9500);display:grid;place-items:center;color:#fff;box-shadow:0 12px 30px rgba(255,45,85,.3)}
-.empty .art .i{width:56px;height:56px}
+.empty .art{width:120px;height:120px;margin:0 auto 18px;border-radius:28px;background:linear-gradient(#2e2e2f,#080808);display:grid;place-items:center;color:#f2f2f7;font-size:76px;line-height:1;font-weight:400;box-shadow:0 12px 30px rgba(0,0,0,.28),inset 0 0 0 .5px rgba(255,255,255,.12)}
 .empty b{display:block;color:var(--label);font-size:22px;margin-bottom:6px}
 .pbtn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:50px;padding:0 22px;border-radius:14px;background:var(--tint);color:#fff;font-weight:600;margin-top:18px}
 .pbtn:active{opacity:.8}
@@ -221,7 +220,7 @@ button.item:active{background:var(--fill)}
   <section id="contSec"><h2>Continue</h2><div class="row" id="cont"></div></section>
   <section id="allSec"><h2>All Videos</h2><div class="grid" id="grid"></div></section>
   <div class="empty hidden" id="empty">
-    <div class="art"><svg class="i"><use href="#i-film"/></svg></div>
+    <div class="art" aria-hidden="true">G</div>
     <b>No videos yet</b>
     Add practice videos from Photos, Files or a YouTube link.<br>
     <button class="pbtn" id="emptyAdd"><svg class="i"><use href="#i-plus"/></svg>Add Video</button>
