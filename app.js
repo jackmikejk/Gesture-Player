@@ -724,6 +724,9 @@ document.addEventListener('error', e => { if (e.target && e.target.tagName === '
 /* ---------- voice commands: "Player, slower" ---------- */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let sr = null, srOn = false, srHandled = new Set(), srStarts = [];
+const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const SR_HINT = { 'service-not-allowed': 'Not available here. Turn on Dictation (Settings → General → Keyboard), or try in Safari', 'not-allowed': 'Allow Microphone and Speech Recognition for this site', 'audio-capture': 'Mic is busy (recording with Room sound?)', 'network': 'Voice needs an internet connection', 'language-not-supported': 'Your language isn’t supported for voice' };
+function voiceStatus(t) { const el = $('voiceStat'); if (el) el.textContent = t; }
 function trigName() { return (set.trigger || 'Player').trim() || 'Player'; } // hoisted: settings use it before this point
 const norm = s => ' ' + String(s).toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim() + ' ';
 function again() {
@@ -766,15 +769,21 @@ function onSpeech(e) {
 }
 function startVoice() {
   if (srOn || !set.voice) return;
-  if (!SR) return flashErr('Voice commands aren’t supported in this browser');
+  if (!SR) { voiceStatus('Not supported in this browser'); return flashErr('Voice commands aren’t supported in this browser'); }
   const now = Date.now(); srStarts = srStarts.filter(x => now - x < 15000); srStarts.push(now);
-  if (srStarts.length > 6) { flashErr('Voice paused — tap the video to resume'); return; } // stop a restart loop
+  if (srStarts.length > 14) { voiceStatus('Paused — tap the video to resume'); flashErr('Voice paused — tap the video to resume'); return; } // stop a restart loop
   srOn = true;
   try {
-    sr = new SR(); sr.continuous = true; sr.interimResults = true; sr.lang = navigator.language || 'en-US';
-    sr.onstart = () => srHandled.clear();
-    sr.onresult = onSpeech;
-    sr.onerror = e => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { srStarts = [1, 1, 1, 1, 1, 1, 1].map(() => Date.now()); flashErr('Allow Microphone and Speech Recognition for voice'); } };
+    // iPhone/iPad: one phrase per session works far more reliably than continuous mode; we restart after each
+    sr = new SR(); sr.continuous = !isIOS; sr.interimResults = true; sr.lang = navigator.language || 'en-US';
+    sr.onstart = () => { srHandled.clear(); voiceStatus('Listening for “' + trigName() + ', …”'); };
+    sr.onresult = e => { const r = e.results[e.results.length - 1]; if (r) voiceStatus('Heard: “' + r[0].transcript.trim() + '”'); onSpeech(e); };
+    sr.onerror = e => {
+      if (e.error === 'no-speech' || e.error === 'aborted') return;
+      const hint = SR_HINT[e.error] || ('Voice error: ' + e.error);
+      voiceStatus(hint);
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { srStarts = Array(20).fill(Date.now()); flashErr(hint); }
+    };
     sr.onend = () => { sr = null; srOn = false; if (set.voice && !document.hidden) setTimeout(startVoice, 300); refreshUI(); };
     sr.start();
   } catch (e) { srOn = false; sr = null; }

@@ -198,6 +198,8 @@ button.item:active{background:var(--fill)}
 @keyframes blink{to{visibility:hidden}}
 #recBtn.rec{background:var(--red);color:#fff}
 .cam.live.recording{border-color:var(--red)!important}
+.vstat{color:var(--tint)!important;margin-top:3px}
+.vstat:empty{display:none!important}
 .trig{width:150px;height:36px;border:0;border-radius:9px;background:var(--fill);color:var(--label);font:16px -apple-system,BlinkMacSystemFont,system-ui,sans-serif;text-align:right;padding:0 10px}
 .seg{display:flex;background:var(--fill);border-radius:9px;padding:2px}
 .seg button{flex:1;min-width:44px;height:32px;border-radius:7px;font-size:14px;font-weight:600}
@@ -347,7 +349,7 @@ button.item:active{background:var(--fill)}
     <div class="item" style="flex-wrap:wrap"><span>Hand must be close<small id="nearTxt"></small></span><input type="range" id="oNear" min="0" max="0.4" step="0.02" aria-label="Hand closeness"></div>
   </div>
   <div class="group">
-    <div class="item"><span>Voice commands<small>Say “<b id="trigShow">Player</b>, stop”. Uses Apple’s speech service.</small></span><label class="sw"><input type="checkbox" id="oVoice"><i></i></label></div>
+    <div class="item"><span>Voice commands<small>Say “<b id="trigShow">Player</b>, stop”. Uses Apple’s speech service.</small><small class="vstat" id="voiceStat"></small></span><label class="sw"><input type="checkbox" id="oVoice"><i></i></label></div>
     <div class="item"><span>Trigger word</span><input class="trig" id="oTrig" maxlength="20" autocomplete="off" autocapitalize="words" spellcheck="false" aria-label="Trigger word"></div>
   </div>
   <div class="group">
