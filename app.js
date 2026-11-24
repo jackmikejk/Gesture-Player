@@ -198,7 +198,8 @@ const GEST = [['✌️', 'Peace sign, hold 1 s', 'Wakes the remote for 5 s (when
 $('gestList').innerHTML = GEST.map(g => `<div class="e">${g[0]}</div><div><b>${esc(g[1])}</b><small>${esc(g[2])}</small></div>`).join('');
 
 /* ---------- player ---------- */
-const v = $('v');
+const vidEl = $('v'), audEl = $('au');
+let v = vidEl; // the element playing now: songs use a real audio player (iPhone keeps their time properly)
 let cur = null, mode = 'none', yt = null, ytReady = false, ytApi = null, pendingYT = null, curRate = 1, hasPlayed = false, resumeAt = 0, objUrl = null;
 let actx = null, gain = null, muted = false, wantPlay = false;
 const RATES = [0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
@@ -222,14 +223,15 @@ function ensureAudio() {
   if (actx) { if (actx.state !== 'running') actx.resume(); return; }
   try {
     actx = new (window.AudioContext || window.webkitAudioContext)();
-    const src = actx.createMediaElementSource(v);
-    gain = actx.createGain(); src.connect(gain).connect(actx.destination); applyVol();
+    gain = actx.createGain(); gain.connect(actx.destination);
+    for (const el of [vidEl, audEl]) actx.createMediaElementSource(el).connect(gain);
+    applyVol();
   } catch (e) { actx = null; }
 }
 function applyVol() {
   const g = muted ? 0 : set.vol;
   if (gain) gain.gain.value = g;
-  try { v.volume = g; } catch (e) {}
+  for (const el of [vidEl, audEl]) { try { el.volume = g; } catch (e) {} }
   if (yt && ytReady) { if (g === 0) yt.mute(); else { yt.unMute(); yt.setVolume(Math.round(g * 100)); } }
   $('volIn').value = Math.round(g * 100);
 }
@@ -257,18 +259,15 @@ async function openItem(id) {
   if (m.type === 'file') {
     const blob = await DB.getBlob(m.id);
     if (!blob) { toast('This video is no longer saved'); return closePlayer(); }
-    mode = 'file'; v.style.display = 'block'; $('ytWrap').style.display = 'none';
+    v = audio ? audEl : vidEl; vidEl.style.display = audio ? 'none' : 'block';
+    mode = 'file'; $('ytWrap').style.display = 'none';
     if (objUrl) URL.revokeObjectURL(objUrl);
     objUrl = URL.createObjectURL(blob); v.src = objUrl;
-    if (!m.dur) { // a plain audio element reads song lengths more reliably on iPhone
-      const pr = new Audio(); pr.preload = 'metadata';
-      pr.onloadedmetadata = () => { if (isFinite(pr.duration) && pr.duration > 0 && cur === m) { m.dur = pr.duration; DB.put(m); refreshUI(); } pr.removeAttribute('src'); };
-      pr.src = objUrl;
-    }
     // unlock this element for later hands-free play (iPad needs one play from a tap)
     unlock();
   } else {
-    mode = 'yt'; v.style.display = 'none'; $('ytWrap').style.display = 'block';
+    v = vidEl; vidEl.style.display = 'none';
+    mode = 'yt'; $('ytWrap').style.display = 'block';
     openYT(m.ytId, resumeAt);
   }
   m.lastPlayed = Date.now(); DB.put(m);
@@ -287,23 +286,25 @@ function closePlayer() {
   exitFs(); loadLibrary();
   if (pendingUpdate) applyUpdate(pendingUpdate);
 }
-v.addEventListener('loadedmetadata', () => {
+for (const el of [vidEl, audEl]) el.addEventListener('loadedmetadata', () => {
+  if (el !== v) return;
   const go = () => {
     if (resumeAt) { try { v.currentTime = resumeAt; } catch (e) {} resumeAt = 0; }
     v.playbackRate = curRate; v.preservesPitch = true;
     if (cur && isFinite(v.duration) && Math.abs((cur.dur || 0) - v.duration) > 0.5) { cur.dur = v.duration; DB.put(cur); }
     refreshUI();
   };
-  if (isFinite(v.duration) && v.duration > 0) return go();
-  // recordings (and some song files) don't state their length up front:
+  if ((isFinite(v.duration) && v.duration > 0) || !cur || kindOf(cur) !== 'rec') return go();
+  // recordings don't state their length up front:
   // jump far ahead once so the browser reads it, then come back
   const onTU = () => { v.removeEventListener('timeupdate', onTU); try { v.currentTime = 0; } catch (e) {} go(); };
   v.addEventListener('timeupdate', onTU);
   try { v.currentTime = 1e101; } catch (e) { v.removeEventListener('timeupdate', onTU); go(); }
 });
-v.addEventListener('play', () => { refreshUI(); showControls(); });
-v.addEventListener('pause', () => { refreshUI(); showControls(); });
-v.addEventListener('ended', () => { refreshUI(); showControls(); });
+for (const el of [vidEl, audEl]) {
+  for (const ev of ['play', 'pause', 'ended']) el.addEventListener(ev, () => { if (el === v) { refreshUI(); showControls(); } });
+  el.addEventListener('durationchange', () => { if (el === v && cur && isFinite(el.duration) && el.duration > 0 && Math.abs((cur.dur || 0) - el.duration) > 0.5) { cur.dur = el.duration; DB.put(cur); } });
+}
 
 function loadYTApi() {
   if (ytApi) return ytApi;
@@ -452,7 +453,7 @@ setInterval(() => {
   if (!cur || mode === 'none' || (mode === 'yt' && !ytReady)) return; // show time even before the player reports "ready"
   const t = P.time() || 0, d = P.dur();
   if (P.ready() && cur.loopA != null && cur.loopB != null && t >= cur.loopB) P.seekTo(cur.loopA);
-  if (!dragging && d) { $('seek').value = Math.round(t / d * 1000); $('fill').style.width = (t / d * 100) + '%'; }
+  if (!dragging) { const f = d ? Math.min(1, t / d) : 0; $('seek').value = Math.round(f * 1000); $('fill').style.width = (f * 100) + '%'; }
   $('tNow').textContent = fmt(t); $('tDur').textContent = fmt(d);
   if (kindOf(cur) === 'audio') $('npSub').textContent = fmt(t) + ' / ' + fmt(d);
   const band = $('band');
