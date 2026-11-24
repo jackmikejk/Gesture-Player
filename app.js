@@ -238,6 +238,7 @@ function closePlayer() {
   mode = 'none'; cur = null;
   document.body.classList.remove('playing'); $('speeds').classList.remove('show');
   exitFs(); loadLibrary();
+  if (pendingUpdate) applyUpdate(pendingUpdate);
 }
 v.addEventListener('loadedmetadata', () => {
   if (resumeAt) { try { v.currentTime = resumeAt; } catch (e) {} resumeAt = 0; }
@@ -546,6 +547,24 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && ru
 /* broken thumbnails (e.g. offline) fall back to the placeholder */
 document.addEventListener('error', e => { if (e.target && e.target.tagName === 'IMG') e.target.remove(); }, true);
 
+/* ---------- updates: installed apps pick up new versions by themselves ---------- */
+const BUILD = '__BUILD__';
+let pendingUpdate = null;
+function applyUpdate(v) { toast('Updating…'); setTimeout(() => location.replace(location.pathname + '?v=' + encodeURIComponent(v)), 400); }
+async function checkUpdate() {
+  if (BUILD.startsWith('__')) return; // local copy, not a deployed build
+  try {
+    const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return;
+    const { v } = await r.json();
+    if (!v || v === BUILD) return;
+    if (cur) pendingUpdate = v; // wait until you leave the player, never mid-practice
+    else applyUpdate(v);
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
+setInterval(checkUpdate, 10 * 60 * 1000);
+
 /* ---------- start ---------- */
-applyVol(); refreshUI(); loadLibrary();
+applyVol(); refreshUI(); loadLibrary(); checkUpdate();
 }
