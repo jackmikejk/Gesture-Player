@@ -178,7 +178,7 @@ function bindSettings() {
   $('oBack').checked = !!set.back;
   $('oBack').onchange = async () => { set.back = $('oBack').checked; saveSet(); if (running && !rec) { await restartCam(false); } refreshUI(); };
   const ra = $('oRecAudio').querySelectorAll('button');
-  const paintRA = () => { ra.forEach(b => b.classList.toggle('on', b.dataset.v === set.recAudio)); $('recAudioTxt').textContent = set.recAudio === 'song' ? 'The song, recorded clean (local songs only)' : 'Your voice, counts and music in the room'; };
+  const paintRA = () => { ra.forEach(b => b.classList.toggle('on', b.dataset.v === set.recAudio)); $('recAudioTxt').textContent = set.recAudio === 'song' ? 'The track, recorded clean (videos only on iPhone/iPad)' : 'Your voice, counts and music in the room'; };
   ra.forEach(b => b.onclick = () => { set.recAudio = b.dataset.v; saveSet(); paintRA(); });
   paintRA();
   for (const [id, k] of Object.entries(sw)) { $(id).checked = !!set[k]; $(id).onchange = () => { set[k] = $(id).checked; saveSet(); refreshUI(); }; }
@@ -224,7 +224,9 @@ function ensureAudio() {
   try {
     actx = new (window.AudioContext || window.webkitAudioContext)();
     gain = actx.createGain(); gain.connect(actx.destination);
-    for (const el of [vidEl, audEl]) actx.createMediaElementSource(el).connect(gain);
+    // only videos go through Web Audio (for volume on iOS); on iPhone/iPad a song routed this way
+    // stops reporting its time and sounds thinner, so songs play straight to the speaker
+    actx.createMediaElementSource(vidEl).connect(gain);
     applyVol();
   } catch (e) { actx = null; }
 }
@@ -232,6 +234,7 @@ function applyVol() {
   const g = muted ? 0 : set.vol;
   if (gain) gain.gain.value = g;
   for (const el of [vidEl, audEl]) { try { el.volume = g; } catch (e) {} }
+  audEl.muted = muted; // iOS ignores volume on a plain audio element, but mute works
   if (yt && ytReady) { if (g === 0) yt.mute(); else { yt.unMute(); yt.setVolume(Math.round(g * 100)); } }
   $('volIn').value = Math.round(g * 100);
 }
@@ -393,7 +396,9 @@ function changeRate(dir) {
   i = Math.max(0, Math.min(list.length - 1, i + dir)); setRate(list[i]);
   toast((dir > 0 ? '🐇 ' : '🐢 ') + fmtRate(curRate));
 }
-function nudgeVol(d) { muted = false; set.vol = Math.max(0, Math.min(1, Math.round((set.vol + d) * 10) / 10)); saveSet(); applyVol(); toast((d > 0 ? '🔊 ' : '🔉 ') + Math.round(set.vol * 100) + '%'); }
+const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function nudgeVol(d) {
+  if (isIOS && v === audEl) return toast('🔊 Use the side volume buttons'); muted = false; set.vol = Math.max(0, Math.min(1, Math.round((set.vol + d) * 10) / 10)); saveSet(); applyVol(); toast((d > 0 ? '🔊 ' : '🔉 ') + Math.round(set.vol * 100) + '%'); }
 function toggleMute() { muted = !muted; applyVol(); toast(muted ? '🔇 Muted' : '🔊 Sound on'); }
 function loopTap(late = 0) {
   if (!cur || !P.ready()) return;
@@ -419,7 +424,8 @@ $('rateBtn').addEventListener('click', () => {
   box.classList.add('show'); showControls();
 });
 $('speeds').addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (!b) return; setRate(+b.dataset.r); $('speeds').classList.remove('show'); showControls(); });
-$('volIn').addEventListener('input', () => { muted = false; set.vol = +$('volIn').value / 100; saveSet(); applyVol(); showControls(); });
+$('volIn').addEventListener('input', () => {
+  if (isIOS && v === audEl) { $('volIn').value = Math.round(set.vol * 100); return toast('🔊 Use the side volume buttons'); } muted = false; set.vol = +$('volIn').value / 100; saveSet(); applyVol(); showControls(); });
 
 /* scrubber */
 let dragging = false;
@@ -664,7 +670,7 @@ async function startRec() {
     if (!running) await startCam(true); else await restartCam(true);
     if (!running || !cam.srcObject) throw new Error('no camera');
     const tracks = [...cam.srcObject.getVideoTracks()];
-    if (set.recAudio === 'song' && actx && gain && mode === 'file') {
+    if (set.recAudio === 'song' && actx && gain && mode === 'file' && v === vidEl) {
       if (!recDest) { recDest = actx.createMediaStreamDestination(); gain.connect(recDest); }
       tracks.push(...recDest.stream.getAudioTracks());
     } else tracks.push(...cam.srcObject.getAudioTracks());
@@ -713,6 +719,7 @@ document.addEventListener('error', e => { if (e.target && e.target.tagName === '
 
 /* ---------- updates: installed apps pick up new versions by themselves ---------- */
 const BUILD = '__BUILD__';
+$('verTxt').textContent = 'Version ' + (BUILD.startsWith('__') ? 'local' : BUILD) + (/\/beta\//.test(location.pathname) ? ' (beta)' : '');
 let pendingUpdate = null;
 function applyUpdate(v) { toast('Updating…'); setTimeout(() => location.replace(location.pathname + '?v=' + encodeURIComponent(v)), 400); }
 async function checkUpdate() {
