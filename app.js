@@ -10,7 +10,7 @@ const toast = (() => { let t; return msg => { const el = $('toast'); el.textCont
 
 /* ---------- settings ---------- */
 const LS = { get(k, d) { try { const x = localStorage.getItem('gp4_' + k); return x === null ? d : JSON.parse(x); } catch (e) { return d; } }, set(k, x) { try { localStorage.setItem('gp4_' + k, JSON.stringify(x)); } catch (e) {} } };
-const set = Object.assign({ lock: true, countdown: true, bubble: true, flip: false, skip: 10, near: 0.16, vol: 0.8 }, LS.get('settings', {}));
+const set = Object.assign({ lock: true, countdown: true, bubble: true, flip: false, skip: 10, near: 0.16, vol: 0.8, back: false, recAudio: 'mic', teach: true }, LS.get('settings', {}));
 const saveSet = () => LS.set('settings', set);
 
 /* ---------- storage: IndexedDB, falls back to memory ---------- */
@@ -32,7 +32,9 @@ const DB = {
 };
 
 /* ---------- library ---------- */
-let items = [], moreId = null;
+let items = [], moreId = null, moreBlob = null, filt = 'all';
+const kindOf = m => m.kind || 'video';
+const hue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
 async function loadLibrary() { items = await DB.all(); renderLibrary(); }
 function sub(m) {
   const bits = [];
@@ -45,9 +47,12 @@ function sub(m) {
 function card(m) {
   const pct = m.dur ? Math.min(100, (m.pos || 0) / m.dur * 100) : 0;
   const img = m.thumb ? `<img src="${esc(m.thumb)}" alt="" loading="lazy">` : '';
+  const k = kindOf(m);
+  const ph = k === 'audio' ? `<div class="ph audio" style="--h:${hue(m.name)}"><svg class="i"><use href="#i-note"/></svg></div>` : '<div class="ph"><svg class="i"><use href="#i-film"/></svg></div>';
+  const badge = m.type === 'yt' ? '<span class="badge">YouTube</span>' : k === 'rec' ? '<span class="badge rec">● Recording</span>' : k === 'audio' ? '<span class="badge">Music</span>' : '';
   return `<article class="card">
-    <button class="open" data-open="${esc(m.id)}" aria-label="Play ${esc(m.name)}"><div class="thumb"><div class="ph"><svg class="i"><use href="#i-film"/></svg></div>${img}
-      ${m.type === 'yt' ? '<span class="badge">YouTube</span>' : ''}${m.dur ? `<span class="dur">${fmt(m.dur)}</span>` : ''}
+    <button class="open" data-open="${esc(m.id)}" aria-label="Play ${esc(m.name)}"><div class="thumb">${ph}${img}
+      ${badge}${m.dur ? `<span class="dur">${fmt(m.dur)}</span>` : ''}
       ${pct > 1 ? `<div class="prog"><i style="width:${pct.toFixed(1)}%"></i></div>` : ''}</div></button>
     <div class="meta"><div><div class="t">${esc(m.name)}</div><div class="s">${esc(sub(m))}</div></div>
       <button class="more" data-more="${esc(m.id)}" aria-label="Options for ${esc(m.name)}"><svg class="i f"><use href="#i-more"/></svg></button></div>
@@ -56,17 +61,21 @@ function card(m) {
 function renderLibrary() {
   const q = $('q').value.trim().toLowerCase();
   const by = (a, b) => (b.lastPlayed || b.added) - (a.lastPlayed || a.added);
-  const list = items.filter(m => !q || m.name.toLowerCase().includes(q)).sort(by);
+  const list = items.filter(m => (!q || m.name.toLowerCase().includes(q)) && (filt === 'all' || kindOf(m) === filt)).sort(by);
   const cont = items.filter(m => m.lastPlayed && m.dur && m.pos > 3 && m.pos < m.dur - 3).sort((a, b) => b.lastPlayed - a.lastPlayed).slice(0, 8);
   $('cont').innerHTML = cont.map(card).join('');
-  $('contSec').classList.toggle('hidden', !cont.length || !!q);
+  $('contSec').classList.toggle('hidden', !cont.length || !!q || filt !== 'all');
+  $('filt').classList.toggle('hidden', !items.length);
+  $('allH').textContent = { all: 'All', video: 'Videos', audio: 'Music', rec: 'Recordings' }[filt];
   $('grid').innerHTML = list.map(card).join('');
   $('allSec').classList.toggle('hidden', !items.length);
   $('empty').classList.toggle('hidden', !!items.length);
-  $('count').textContent = items.length ? items.length + (items.length === 1 ? ' video' : ' videos') : '';
-  if (items.length && q && !list.length) $('grid').innerHTML = `<p class="s">No videos match “${esc(q)}”.</p>`;
+  const n = k => items.filter(m => kindOf(m) === k).length, pl = (c, w) => c ? c + ' ' + w + (c === 1 ? '' : 's') : '';
+  $('count').textContent = [pl(n('video'), 'video'), pl(n('audio'), 'song'), pl(n('rec'), 'recording')].filter(Boolean).join(' · ');
+  if (items.length && !list.length) $('grid').innerHTML = `<p class="s">${q ? 'Nothing matches “' + esc(q) + '”.' : 'Nothing here yet.'}</p>`;
 }
 $('q').addEventListener('input', renderLibrary);
+$('filt').addEventListener('click', e => { const b = e.target.closest('[data-f]'); if (!b) return; filt = b.dataset.f; $('filt').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); renderLibrary(); });
 addEventListener('scroll', () => $('nav').classList.toggle('stuck', scrollY > 50), { passive: true });
 for (const box of ['cont', 'grid']) $(box).addEventListener('click', e => {
   const o = e.target.closest('[data-open]'), mo = e.target.closest('[data-more]');
@@ -85,6 +94,7 @@ $('addBtn').addEventListener('click', () => openSheet('sAdd'));
 $('emptyAdd').addEventListener('click', () => openSheet('sAdd'));
 $('addPhotos').addEventListener('click', () => { closeSheet(); $('fileIn').click(); });
 $('addFiles').addEventListener('click', () => { closeSheet(); $('fileIn').click(); });
+$('addMusic').addEventListener('click', () => { closeSheet(); $('musicIn').click(); });
 $('addLink').addEventListener('click', () => { openSheet('sLink'); $('linkMsg').textContent = ''; setTimeout(() => $('linkIn').focus(), 50); });
 
 function makeThumb(blob) {
@@ -93,7 +103,7 @@ function makeThumb(blob) {
     let done = false;
     const fin = t => { if (done) return; done = true; const d = isFinite(vid.duration) ? vid.duration : 0; URL.revokeObjectURL(url); vid.removeAttribute('src'); try { vid.load(); } catch (e) {} res({ thumb: t || '', dur: d }); };
     vid.muted = true; vid.playsInline = true; vid.preload = 'auto';
-    vid.onloadedmetadata = () => { try { vid.currentTime = Math.min(1.5, (vid.duration || 2) * 0.1); } catch (e) { fin(); } };
+    vid.onloadedmetadata = () => { if (!vid.videoWidth) return fin(); /* songs have no picture */ try { vid.currentTime = Math.min(1.5, (vid.duration || 2) * 0.1); } catch (e) { fin(); } };
     vid.onseeked = () => { try { const w = 480, h = Math.round(w * vid.videoHeight / vid.videoWidth) || 270, c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(vid, 0, 0, w, h); fin(c.toDataURL('image/jpeg', .72)); } catch (e) { fin(); } };
     vid.onerror = () => fin();
     setTimeout(() => fin(), 9000);
@@ -101,20 +111,23 @@ function makeThumb(blob) {
   });
 }
 const newId = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-$('fileIn').addEventListener('change', async e => {
+const isAudio = f => /^audio\//.test(f.type) || /\.(mp3|m4a|aac|wav|flac|ogg|opus)$/i.test(f.name);
+async function addFiles(e) {
   const files = [...e.target.files]; e.target.value = '';
   if (!files.length) return;
-  toast(files.length === 1 ? 'Adding…' : 'Adding ' + files.length + ' videos…');
+  toast(files.length === 1 ? 'Adding…' : 'Adding ' + files.length + '…');
   let tooBig = 0;
   for (const f of files) {
-    const id = newId('f'), { thumb, dur } = await makeThumb(f);
-    const m = { id, type: 'file', name: f.name.replace(/\.[^.]+$/, '') || 'Video', added: Date.now(), lastPlayed: 0, dur, pos: 0, rate: 1, mirror: false, loopA: null, loopB: null, thumb };
+    const id = newId('f'), { thumb, dur } = await makeThumb(f), audio = isAudio(f);
+    const m = { id, type: 'file', kind: audio ? 'audio' : 'video', name: f.name.replace(/\.[^.]+$/, '') || (audio ? 'Song' : 'Video'), added: Date.now(), lastPlayed: 0, dur, pos: 0, rate: 1, mirror: false, loopA: null, loopB: null, thumb: audio ? '' : thumb };
     const ok = await DB.putBlob(id, f);
     if (!ok) { m.temp = true; tooBig++; mem.meta.set(id, m); } else await DB.put(m);
   }
   await loadLibrary();
   toast(tooBig ? 'Added — some only for now' : files.length === 1 ? 'Added' : 'Added ' + files.length);
-});
+}
+$('fileIn').addEventListener('change', addFiles);
+$('musicIn').addEventListener('change', addFiles);
 function ytId(u) { const m = u.match(/(?:youtu\.be\/|[?&]v=|\/shorts\/|\/embed\/|\/live\/)([\w-]{11})/); return m && m[1]; }
 $('linkForm').addEventListener('submit', async e => {
   e.preventDefault();
@@ -134,8 +147,21 @@ function openMore(id) {
   const m = items.find(x => x.id === id) || mem.meta.get(id); if (!m) return;
   moreId = id; $('moreTitle').textContent = m.name; $('renIn').value = m.name;
   $('delTxt').textContent = 'Delete from Library'; $('delBtn').dataset.arm = '';
+  $('shareGrp').classList.toggle('hidden', m.type !== 'file');
+  moreBlob = null; if (m.type === 'file') DB.getBlob(id).then(b => { if (moreId === id) moreBlob = b; }); // ready before the tap, so iOS allows sharing
   openSheet('sMore');
 }
+async function shareItem() {
+  const m = items.find(x => x.id === moreId) || mem.meta.get(moreId), b = moreBlob;
+  if (!m || !b) return toast('One moment…');
+  const type = b.type || (kindOf(m) === 'audio' ? 'audio/mp4' : 'video/mp4');
+  const ext = m.ext || (/webm/.test(type) ? 'webm' : /quicktime/.test(type) ? 'mov' : /mpeg/.test(type) ? 'mp3' : /audio/.test(type) ? 'm4a' : 'mp4');
+  const file = new File([b], (m.name.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Gesture Player') + '.' + ext, { type });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file] }); } catch (e) {} return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+}
+$('shareBtn').addEventListener('click', shareItem);
 $('renForm').addEventListener('submit', async e => {
   e.preventDefault(); const m = items.find(x => x.id === moreId); const n = $('renIn').value.trim();
   if (!m || !n) return; m.name = n.slice(0, 120); await DB.put(m); closeSheet(); renderLibrary(); toast('Renamed');
@@ -148,7 +174,13 @@ $('delBtn').addEventListener('click', async () => {
 
 /* ---------- settings sheet ---------- */
 function bindSettings() {
-  const sw = { oLock: 'lock', oCount: 'countdown', oBubble: 'bubble', oFlip: 'flip' };
+  const sw = { oLock: 'lock', oCount: 'countdown', oBubble: 'bubble', oFlip: 'flip', oTeach: 'teach' };
+  $('oBack').checked = !!set.back;
+  $('oBack').onchange = async () => { set.back = $('oBack').checked; saveSet(); if (running && !rec) { await restartCam(false); } refreshUI(); };
+  const ra = $('oRecAudio').querySelectorAll('button');
+  const paintRA = () => { ra.forEach(b => b.classList.toggle('on', b.dataset.v === set.recAudio)); $('recAudioTxt').textContent = set.recAudio === 'song' ? 'The song, recorded clean (local songs only)' : 'Your voice, counts and music in the room'; };
+  ra.forEach(b => b.onclick = () => { set.recAudio = b.dataset.v; saveSet(); paintRA(); });
+  paintRA();
   for (const [id, k] of Object.entries(sw)) { $(id).checked = !!set[k]; $(id).onchange = () => { set[k] = $(id).checked; saveSet(); refreshUI(); }; }
   const segs = $('oSkip').querySelectorAll('button');
   const paintSeg = () => segs.forEach(b => b.classList.toggle('on', +b.dataset.v === +set.skip));
@@ -162,11 +194,12 @@ function bindSettings() {
 bindSettings();
 for (const b of ['setBtn', 'pSet']) $(b).addEventListener('click', () => openSheet('sSet'));
 for (const b of ['helpBtn', 'pHelp']) $(b).addEventListener('click', () => openSheet('sHelp'));
-const GEST = [['✌️', 'Peace sign, hold 1 s', 'Wakes the remote for 5 s (when the lock is on)'], ['✋', 'Open palm, hold', 'Play or pause'], ['👉', 'Point to your right', 'Skip forward'], ['👈', 'Point to your left', 'Skip back'], ['☝️', 'Point up', 'Faster'], ['👇', 'Point down', 'Slower'], ['👍', 'Thumb up', 'Volume up'], ['👎', 'Thumb down', 'Volume down'], ['🤟', 'Rock-on sign, hold', 'Loop: start, then end, then off'], ['✊', 'Fist, hold', 'Mute or unmute']];
+const GEST = [['✌️', 'Peace sign, hold 1 s', 'Wakes the remote for 5 s (when the lock is on)'], ['✋', 'Open palm, hold', 'Play or pause'], ['👉', 'Point to your right', 'Skip forward'], ['👈', 'Point to your left', 'Skip back'], ['☝️', 'Point up', 'Faster'], ['👇', 'Point down', 'Slower'], ['👍', 'Thumb up', 'Volume up'], ['👎', 'Thumb down', 'Volume down'], ['🤟', 'Rock-on sign, hold', 'Loop: start, then end, then off'], ['✊', 'Fist, hold', 'Mute or unmute'], ['🤗', 'Arms crossed, hands on shoulders, hold 1 s', 'Start or stop recording (works from across the room)']];
 $('gestList').innerHTML = GEST.map(g => `<div class="e">${g[0]}</div><div><b>${esc(g[1])}</b><small>${esc(g[2])}</small></div>`).join('');
 
 /* ---------- player ---------- */
-const v = $('v');
+const vidEl = $('v'), audEl = $('au');
+let v = vidEl; // the element playing now: songs use a real audio player (iPhone keeps their time properly)
 let cur = null, mode = 'none', yt = null, ytReady = false, ytApi = null, pendingYT = null, curRate = 1, hasPlayed = false, resumeAt = 0, objUrl = null;
 let actx = null, gain = null, muted = false, wantPlay = false;
 const RATES = [0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
@@ -176,24 +209,29 @@ const P = {
   play: async () => { if (mode === 'file') { ensureAudio(); await v.play(); } else yt.playVideo(); },
   pause: () => { wantPlay = false; return mode === 'file' ? v.pause() : yt.pauseVideo(); },
   time: () => mode === 'file' ? v.currentTime : (yt && yt.getCurrentTime ? yt.getCurrentTime() : 0),
-  dur: () => mode === 'file' ? (isFinite(v.duration) ? v.duration : 0) : (yt && yt.getDuration ? yt.getDuration() : 0),
+  dur: () => mode === 'file' ? (isFinite(v.duration) ? v.duration : (v.seekable.length && isFinite(v.seekable.end(v.seekable.length - 1)) ? v.seekable.end(v.seekable.length - 1) : (cur && cur.dur) || 0)) : (yt && yt.getDuration ? yt.getDuration() : 0),
   seekTo: t => mode === 'file' ? (v.currentTime = t) : yt.seekTo(t, true),
   rates: () => { if (mode === 'yt' && yt && yt.getAvailablePlaybackRates) { const r = yt.getAvailablePlaybackRates(); if (r && r.length) return r; } return RATES; },
   setRate: r => { if (mode === 'file') { v.playbackRate = r; v.preservesPitch = true; } else if (yt) yt.setPlaybackRate(r); }
 };
 
+/* iOS: 'playback' gives full-quality speaker sound (and plays on silent);
+   only switch to 'play-and-record' while the mic is recording */
+const audioSession = t => { try { if (navigator.audioSession && navigator.audioSession.type !== t) navigator.audioSession.type = t; } catch (e) {} };
+audioSession('playback');
 function ensureAudio() {
   if (actx) { if (actx.state !== 'running') actx.resume(); return; }
   try {
     actx = new (window.AudioContext || window.webkitAudioContext)();
-    const src = actx.createMediaElementSource(v);
-    gain = actx.createGain(); src.connect(gain).connect(actx.destination); applyVol();
+    gain = actx.createGain(); gain.connect(actx.destination);
+    for (const el of [vidEl, audEl]) actx.createMediaElementSource(el).connect(gain);
+    applyVol();
   } catch (e) { actx = null; }
 }
 function applyVol() {
   const g = muted ? 0 : set.vol;
   if (gain) gain.gain.value = g;
-  try { v.volume = g; } catch (e) {}
+  for (const el of [vidEl, audEl]) { try { el.volume = g; } catch (e) {} }
   if (yt && ytReady) { if (g === 0) yt.mute(); else { yt.unMute(); yt.setVolume(Math.round(g * 100)); } }
   $('volIn').value = Math.round(g * 100);
 }
@@ -213,17 +251,23 @@ async function openItem(id) {
   cur = m; curRate = m.rate || 1; hasPlayed = false; resumeAt = m.pos && m.dur && m.pos < m.dur - 2 ? m.pos : 0;
   document.body.classList.add('playing');
   $('ptitle').textContent = m.name;
-  $('media').classList.toggle('mirror', !!m.mirror);
+  const audio = kindOf(m) === 'audio';
+  $('player').classList.toggle('audio', audio);
+  $('npTitle').textContent = m.name; $('npSub').textContent = m.dur ? fmt(m.dur) : '';
+  $('npArt').style.setProperty('--h', hue(m.name)); $('np').style.setProperty('--h', hue(m.name));
+  $('media').classList.toggle('mirror', !!m.mirror && !audio);
   if (m.type === 'file') {
     const blob = await DB.getBlob(m.id);
     if (!blob) { toast('This video is no longer saved'); return closePlayer(); }
-    mode = 'file'; v.style.display = 'block'; $('ytWrap').style.display = 'none';
+    v = audio ? audEl : vidEl; vidEl.style.display = audio ? 'none' : 'block';
+    mode = 'file'; $('ytWrap').style.display = 'none';
     if (objUrl) URL.revokeObjectURL(objUrl);
     objUrl = URL.createObjectURL(blob); v.src = objUrl;
     // unlock this element for later hands-free play (iPad needs one play from a tap)
     unlock();
   } else {
-    mode = 'yt'; v.style.display = 'none'; $('ytWrap').style.display = 'block';
+    v = vidEl; vidEl.style.display = 'none';
+    mode = 'yt'; $('ytWrap').style.display = 'block';
     openYT(m.ytId, resumeAt);
   }
   m.lastPlayed = Date.now(); DB.put(m);
@@ -231,23 +275,36 @@ async function openItem(id) {
   refreshUI(); showControls();
 }
 function closePlayer() {
+  if (rec) stopRec(true);
   savePos();
   if (cdTimer) cancelCountdown();
   if (mode === 'file') { v.pause(); v.removeAttribute('src'); try { v.load(); } catch (e) {} if (objUrl) { URL.revokeObjectURL(objUrl); objUrl = null; } }
   if (mode === 'yt' && yt && ytReady) yt.pauseVideo();
   mode = 'none'; cur = null;
+  $('player').classList.remove('audio');
   document.body.classList.remove('playing'); $('speeds').classList.remove('show');
   exitFs(); loadLibrary();
   if (pendingUpdate) applyUpdate(pendingUpdate);
 }
-v.addEventListener('loadedmetadata', () => {
-  if (resumeAt) { try { v.currentTime = resumeAt; } catch (e) {} resumeAt = 0; }
-  v.playbackRate = curRate; v.preservesPitch = true;
-  if (cur && !cur.dur) { cur.dur = v.duration; DB.put(cur); }
+for (const el of [vidEl, audEl]) el.addEventListener('loadedmetadata', () => {
+  if (el !== v) return;
+  const go = () => {
+    if (resumeAt) { try { v.currentTime = resumeAt; } catch (e) {} resumeAt = 0; }
+    v.playbackRate = curRate; v.preservesPitch = true;
+    if (cur && isFinite(v.duration) && Math.abs((cur.dur || 0) - v.duration) > 0.5) { cur.dur = v.duration; DB.put(cur); }
+    refreshUI();
+  };
+  if ((isFinite(v.duration) && v.duration > 0) || !cur || kindOf(cur) !== 'rec') return go();
+  // recordings don't state their length up front:
+  // jump far ahead once so the browser reads it, then come back
+  const onTU = () => { v.removeEventListener('timeupdate', onTU); try { v.currentTime = 0; } catch (e) {} go(); };
+  v.addEventListener('timeupdate', onTU);
+  try { v.currentTime = 1e101; } catch (e) { v.removeEventListener('timeupdate', onTU); go(); }
 });
-v.addEventListener('play', () => { refreshUI(); showControls(); });
-v.addEventListener('pause', () => { refreshUI(); showControls(); });
-v.addEventListener('ended', () => { refreshUI(); showControls(); });
+for (const el of [vidEl, audEl]) {
+  for (const ev of ['play', 'pause', 'ended']) el.addEventListener(ev, () => { if (el === v) { refreshUI(); showControls(); } });
+  el.addEventListener('durationchange', () => { if (el === v && cur && isFinite(el.duration) && el.duration > 0 && Math.abs((cur.dur || 0) - el.duration) > 0.5) { cur.dur = el.duration; DB.put(cur); } });
+}
 
 function loadYTApi() {
   if (ytApi) return ytApi;
@@ -393,11 +450,12 @@ function showControls() {
 
 /* loop + scrubber tick */
 setInterval(() => {
-  if (!cur || !P.ready()) return;
-  const t = P.time(), d = P.dur();
-  if (cur.loopA != null && cur.loopB != null && t >= cur.loopB) P.seekTo(cur.loopA);
-  if (!dragging && d) { $('seek').value = Math.round(t / d * 1000); $('fill').style.width = (t / d * 100) + '%'; }
+  if (!cur || mode === 'none' || (mode === 'yt' && !ytReady)) return; // show time even before the player reports "ready"
+  const t = P.time() || 0, d = P.dur();
+  if (P.ready() && cur.loopA != null && cur.loopB != null && t >= cur.loopB) P.seekTo(cur.loopA);
+  if (!dragging) { const f = d ? Math.min(1, t / d) : 0; $('seek').value = Math.round(f * 1000); $('fill').style.width = (f * 100) + '%'; }
   $('tNow').textContent = fmt(t); $('tDur').textContent = fmt(d);
+  if (kindOf(cur) === 'audio') $('npSub').textContent = fmt(t) + ' / ' + fmt(d);
   const band = $('band');
   band.className = 'band';
   if (d && cur.loopA != null) {
@@ -455,7 +513,15 @@ function refreshUI(now = performance.now()) {
   $('playBtn').setAttribute('aria-label', playing ? 'Pause' : 'Play');
   $('rateBtn').textContent = fmtRate(curRate);
   document.querySelectorAll('.skipN').forEach(s => s.textContent = set.skip);
+  const audio = !!(cur && kindOf(cur) === 'audio');
   $('mirBtn').classList.toggle('on', !!(cur && cur.mirror));
+  $('mirBtn').classList.toggle('hidden', audio);
+  $('player').classList.toggle('camon', running);
+  $('recBtn').classList.toggle('rec', !!rec);
+  $('recBtn').setAttribute('aria-label', rec ? 'Stop recording' : 'Record');
+  $('recPill').classList.toggle('show', !!rec);
+  $('camBox').classList.toggle('recording', !!rec);
+  $('camBox').classList.toggle('back', !!set.back);
   $('camBtn').classList.toggle('on', running);
   const looping = cur && cur.loopA != null && cur.loopB != null, half = cur && cur.loopA != null && cur.loopB == null;
   $('loopBtn').classList.toggle('on', !!looping);
@@ -471,12 +537,13 @@ function refreshUI(now = performance.now()) {
   else if (on) { pill.textContent = '👂 Listening ' + Math.max(1, Math.ceil((awakeUntil - now) / 1000)) + 's'; pill.className = 'pill glass armed' + (running ? ' show' : ''); }
   else { pill.textContent = '🔒 Locked · ✌️ to wake'; pill.className = 'pill glass locked' + (running ? ' show' : ''); }
   $('camBox').classList.toggle('armed', running && on);
-  $('camBox').classList.toggle('hide', !set.bubble);
+  $('camBox').classList.toggle('hide', !set.bubble && !audio && !rec);
   $('shield').style.pointerEvents = mode === 'yt' && !hasPlayed ? 'none' : 'auto';
 }
 
 /* ---------- camera + MediaPipe ---------- */
 const cam = $('cam'), ov = $('ov'), octx = ov.getContext('2d');
+let poser = null, lastPose = 0, crossSince = 0, crossFired = false, uncrossSince = 0;
 let recognizer = null, running = false, starting = false, lastT = -1, lastRun = 0, wakeLock = null, camErr = '';
 function draw(lm) {
   ov.width = ov.clientWidth * devicePixelRatio; ov.height = ov.clientHeight * devicePixelRatio;
@@ -488,32 +555,50 @@ function draw(lm) {
 }
 async function keepAwake() { try { if (!wakeLock && navigator.wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) {} }
 function flashErr(m) { camErr = m; refreshUI(); $('pill').classList.add('show'); setTimeout(() => { camErr = ''; refreshUI(); }, 5000); }
-async function startCam() {
+function openStream(hi) {
+  // gestures only need a small picture; recording asks for 1080p (and the mic for room sound)
+  const video = { facingMode: set.back ? 'environment' : 'user', width: { ideal: hi ? 1920 : 640 }, height: { ideal: hi ? 1080 : 480 }, frameRate: { ideal: 30 } };
+  const audio = hi && set.recAudio === 'mic' ? { echoCancellation: false, noiseSuppression: false, autoGainControl: true } : false;
+  return navigator.mediaDevices.getUserMedia({ video, audio });
+}
+async function restartCam(hi) {
+  const old = cam.srcObject; if (old) old.getTracks().forEach(t => t.stop()); // iOS allows one camera stream at a time
+  cam.srcObject = await openStream(hi); await cam.play().catch(() => {});
+}
+async function startCam(hi = false) {
   if (running || starting) return;
   if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return flashErr('Camera needs your GitHub link');
   starting = true; toast('Starting camera…');
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
-    cam.srcObject = stream; await cam.play();
-    if (!recognizer) {
+    cam.srcObject = await openStream(hi); await cam.play();
+    if (!recognizer) try {
       const base = new URL('vendor/mediapipe/', location.href).href;
       const vision = await import(base + 'vision_bundle.mjs');
       const files = await vision.FilesetResolver.forVisionTasks(base + 'wasm');
       let model = base + 'gesture_recognizer.task';
       try { const r = await fetch(model, { method: 'HEAD' }); if (!r.ok) throw 0; }
       catch (e) { model = 'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task'; }
-      const opts = delegate => ({ baseOptions: { modelAssetPath: model, delegate }, runningMode: 'VIDEO', numHands: 1 });
+      const opts = delegate => ({ baseOptions: { modelAssetPath: model, delegate }, runningMode: 'VIDEO', numHands: 2 });
       try { recognizer = await vision.GestureRecognizer.createFromOptions(files, opts('GPU')); }
       catch (e) { recognizer = await vision.GestureRecognizer.createFromOptions(files, opts('CPU')); }
-    }
+      // body pose, for the arms-crossed record gesture
+      let pm = base + 'pose_landmarker_lite.task';
+      try { const r = await fetch(pm, { method: 'HEAD' }); if (!r.ok) throw 0; }
+      catch (e) { pm = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'; }
+      const popts = delegate => ({ baseOptions: { modelAssetPath: pm, delegate }, runningMode: 'VIDEO', numPoses: 1 });
+      try { poser = await vision.PoseLandmarker.createFromOptions(files, popts('GPU')); }
+      catch (e) { try { poser = await vision.PoseLandmarker.createFromOptions(files, popts('CPU')); } catch (x) { poser = null; } }
+    } catch (e) { recognizer = null; } // the camera (and recording) still work without hand tracking
     running = true; LS.set('cam', true);
-    $('camBox').classList.add('live'); keepAwake(); toast('📷 Camera on'); refreshUI(); loop();
+    $('camBox').classList.add('live'); keepAwake(); refreshUI(); loop();
+    if (recognizer) toast('📷 Camera on'); else flashErr('Hand tracking didn’t load — check your connection');
   } catch (e) {
     stopCam(true);
     flashErr(e && e.name === 'NotAllowedError' ? 'Camera blocked — allow it in Settings' : 'Camera unavailable here');
   } finally { starting = false; }
 }
 function stopCam(quiet) {
+  if (rec) stopRec(true);
   running = false;
   const s = cam.srcObject; if (s) s.getTracks().forEach(t => t.stop());
   cam.srcObject = null; $('camBox').classList.remove('live');
@@ -526,23 +611,102 @@ $('camBtn').addEventListener('click', () => running ? stopCam() : startCam());
 function loop() {
   if (!running) return;
   const now = performance.now();
-  if (now - lastRun > 66 && cam.readyState >= 2 && cam.currentTime !== lastT) {
+  if (recognizer && now - lastRun > 66 && cam.readyState >= 2 && cam.currentTime !== lastT) {
     lastRun = now; lastT = cam.currentTime;
     try {
       const res = recognizer.recognizeForVideo(cam, now);
-      const lm = res.landmarks && res.landmarks[0];
-      if (lm) {
-        const top = res.gestures && res.gestures[0] && res.gestures[0][0];
-        const cat = top && top.score > 0.6 ? top.categoryName : 'None';
-        step(handSize(lm) < +set.near ? 'far' : classify(cat, lm), now);
-      } else step('away', now);
+      const all = res.landmarks || [], cats = (res.gestures || []).map(g => g && g[0] && g[0].score > 0.6 ? g[0].categoryName : 'None');
+      // use the biggest (closest) hand
+      let i = 0; all.forEach((h, k) => { if (handSize(h) > handSize(all[i])) i = k; });
+      const lm = all[i];
+      if (lm) step(handSize(lm) < +set.near ? 'far' : classify(cats[i] || 'None', lm), now);
+      else step('away', now);
       draw(lm);
     } catch (e) {}
+    if (poser && now - lastPose > 200) { lastPose = now; try { checkCross(poser.detectForVideo(cam, now), now); } catch (e) {} }
     refreshUI(now);
   }
   requestAnimationFrame(loop);
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && running) keepAwake(); });
+
+/* arms crossed, each hand on the opposite shoulder, held 1 s = start/stop recording */
+function checkCross(res, now) {
+  const p = res && res.landmarks && res.landmarks[0];
+  let crossed = false;
+  if (p) {
+    const ls = p[11], rs = p[12], sw = dist(ls, rs), vis = q => (q.visibility == null ? 1 : q.visibility) > 0.4;
+    const lw = [p[15], p[17], p[19]], rw = [p[16], p[18], p[20]]; // wrist and hand points
+    const near = (hand, sh) => Math.min(...hand.map(q => dist(q, sh))) < sw * 0.6;
+    crossed = sw > 0.04 && vis(ls) && vis(rs) && near(lw, rs) && near(rw, ls);
+  }
+  if (crossed) {
+    uncrossSince = 0;
+    if (!crossSince) crossSince = now;
+    if (!crossFired && now - crossSince >= 1000 && cur && !sheetOpen && awake(now)) { crossFired = true; awakeUntil = now + AWAKE_MS; toggleRec(); }
+  } else {
+    crossSince = 0;
+    if (!uncrossSince) uncrossSince = now;
+    if (now - uncrossSince > 600) crossFired = false; // arms down before it can fire again
+  }
+}
+
+/* ---------- recording: films you while gestures keep working ---------- */
+let rec = null, recChunks = [], recStart = 0, recDest = null, recBusy = false;
+const recMime = () => ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'].find(t => { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } }) || '';
+function toggleRec() { rec ? stopRec() : startRec(); }
+async function startRec() {
+  if (rec || recBusy) return;
+  if (!window.MediaRecorder) return flashErr('Recording isn’t supported on this device');
+  recBusy = true; toast('Starting recording…');
+  try {
+    if (set.recAudio === 'mic') audioSession('play-and-record');
+    if (!running) await startCam(true); else await restartCam(true);
+    if (!running || !cam.srcObject) throw new Error('no camera');
+    const tracks = [...cam.srcObject.getVideoTracks()];
+    if (set.recAudio === 'song' && actx && gain && mode === 'file') {
+      if (!recDest) { recDest = actx.createMediaStreamDestination(); gain.connect(recDest); }
+      tracks.push(...recDest.stream.getAudioTracks());
+    } else tracks.push(...cam.srcObject.getAudioTracks());
+    const mime = recMime(), opts = { videoBitsPerSecond: 10000000, audioBitsPerSecond: 192000 };
+    if (mime) opts.mimeType = mime;
+    const r = new MediaRecorder(new MediaStream(tracks), opts);
+    recChunks = [];
+    r.ondataavailable = e => { if (e.data && e.data.size) recChunks.push(e.data); };
+    r.onstop = () => saveRec(r);
+    r.start(1000); rec = r; recStart = Date.now();
+    toast('● Recording'); refreshUI();
+    if (set.teach && cur && P.ready() && P.paused() && !cdTimer) togglePlay();
+  } catch (e) {
+    rec = null; audioSession('playback'); flashErr(e && e.name === 'NotAllowedError' ? 'Allow camera and microphone in Settings' : 'Couldn’t start recording');
+    if (running) restartCam(false).catch(() => {});
+  } finally { recBusy = false; }
+}
+function stopRec(quiet) {
+  if (!rec) return;
+  const r = rec; rec = null;
+  try { r.stop(); } catch (e) {}
+  if (!quiet && set.teach && cur && P.ready() && !P.paused()) P.pause();
+  if (!quiet) toast('■ Saving…');
+  refreshUI();
+}
+async function saveRec(r) {
+  const type = r.mimeType || (recChunks[0] && recChunks[0].type) || 'video/mp4';
+  const blob = new Blob(recChunks, { type }), secs = (Date.now() - recStart) / 1000; recChunks = [];
+  audioSession('playback');
+  if (running) restartCam(false).catch(() => {}); // back to the light gesture camera
+  if (!blob.size) return toast('Recording was empty');
+  const d = new Date(), id = newId('r');
+  const name = 'Recording ' + d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const { thumb, dur } = await makeThumb(blob);
+  const m = { id, type: 'file', kind: 'rec', name, added: Date.now(), lastPlayed: 0, dur: dur || secs, pos: 0, rate: 1, mirror: false, loopA: null, loopB: null, thumb, ext: /webm/.test(type) ? 'webm' : 'mp4' };
+  if (await DB.putBlob(id, blob)) await DB.put(m); else { m.temp = true; mem.meta.set(id, m); }
+  items = await DB.all(); if (!cur) renderLibrary();
+  toast('✓ Recording saved');
+}
+$('recBtn').addEventListener('click', () => { ensureAudio(); toggleRec(); });
+setInterval(() => { if (rec) $('recTime').textContent = fmt((Date.now() - recStart) / 1000); }, 500);
+document.addEventListener('visibilitychange', () => { if (document.hidden && rec) stopRec(true); }); // iOS stops the camera in the background
 
 /* broken thumbnails (e.g. offline) fall back to the placeholder */
 document.addEventListener('error', e => { if (e.target && e.target.tagName === 'IMG') e.target.remove(); }, true);
@@ -564,6 +728,9 @@ async function checkUpdate() {
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
 setInterval(checkUpdate, 10 * 60 * 1000);
+
+/* the test copy at /beta/ says so, so it's never mistaken for the live app */
+if (/\/beta\//.test(location.pathname)) { const t = document.createElement('span'); t.className = 'betaTag'; t.textContent = 'Beta'; document.querySelector('h1').append(' ', t); document.title = 'Gesture Player Beta'; }
 
 /* ---------- start ---------- */
 applyVol(); refreshUI(); loadLibrary(); checkUpdate();

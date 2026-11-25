@@ -19,7 +19,10 @@ Prop your iPad up, step back and practise. Pause, rewind, slow down or loop a se
 - **Loop a section** to learn steps: tap Loop (or hold 🤟) at the start, then again at the end, and fine-tune each point by half a second
 - **3‑2‑1 countdown** before play
 - **Speed** from 0.3× to 2× with normal pitch
-- **Library** of your videos from Photos, Files or YouTube links; each one remembers its spot, speed, loop and mirror setting
+- **Music mode** for teaching and choreographing: control songs from Files (or YouTube) with the same gestures, with a big now-playing screen
+- **Record yourself** in 1080p while gestures keep working: front or back camera, room sound or the clean song, then save to Photos
+- **Teach mode**: one gesture starts the song and the recording together, and stops both
+- **Library** of videos, songs and recordings from Photos, Files or YouTube links; each one remembers its spot, speed, loop and mirror setting
 - Follows light and dark mode, and works as a Home Screen app
 
 ## Gestures
@@ -33,6 +36,7 @@ Prop your iPad up, step back and practise. Pause, rewind, slow down or loop a se
 | 👍 / 👎 Thumb up / down | Volume up / down |
 | 🤟 Rock-on sign, hold | Loop: set start, then end, then turn off |
 | ✊ Fist, hold | Mute or unmute |
+| 🤗 Arms crossed, hands on shoulders, hold 1 s | Start or stop recording (works from across the room) |
 
 ## Install on iPad or iPhone
 
@@ -46,12 +50,14 @@ It also works in recent Chrome and Edge on desktop or Android.
 
 - **No accounts, no ads, no analytics, no tracking.**
 - **The camera never leaves your device.** Hand tracking runs locally in your browser, and no images or video are recorded, stored or uploaded.
+- **Recordings stay on your device** until you choose to save or share them.
 - **Your videos stay on your device.** They're saved in your browser's own storage for this app. Deleting the app or clearing website data removes them, so keep your originals.
 - YouTube videos play through YouTube's official embedded player, which follows YouTube's own privacy policy.
 
 ## What it doesn't do
 
 - It doesn't download videos from YouTube, Instagram or anywhere else.
+- It can't control Spotify or Apple Music; add songs as files instead.
 - Instagram links can't be played. Save the reel to your device first, then add it from Photos.
 - Some YouTube videos can't be played if their owner turned off embedding.
 
