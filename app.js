@@ -247,10 +247,25 @@ function applyVol() {
   if (yt && ytReady) { if (g === 0) yt.mute(); else { yt.unMute(); yt.setVolume(Math.round(g * 100)); } }
   $('volIn').value = Math.round(g * 100);
 }
-function beep(hi) {
-  if (!actx || actx.state !== 'running') return;
-  try { const o = actx.createOscillator(), g = actx.createGain(); o.frequency.value = hi ? 1320 : 880; g.gain.setValueAtTime(.0001, actx.currentTime); g.gain.exponentialRampToValueAtTime(.25, actx.currentTime + .01); g.gain.exponentialRampToValueAtTime(.0001, actx.currentTime + .18); o.connect(g).connect(actx.destination); o.start(); o.stop(actx.currentTime + .2); } catch (e) {}
+function beep(hi, soft) {
+  if (!actx) return;
+  if (actx.state !== 'running') { try { actx.resume(); } catch (e) {} }
+  try {
+    const t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
+    o.type = soft ? 'triangle' : 'sine'; o.frequency.value = hi ? 1320 : 880;
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(soft ? .35 : .5, t + .008); g.gain.exponentialRampToValueAtTime(.0001, t + (soft ? .09 : .18));
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t + .2);
+  } catch (e) {}
 }
+/* iPhone/iPad only allow sound and speech after a tap: unlock both on the first tap in the app */
+let soundReady = false;
+function unlockSound() {
+  if (soundReady) return; soundReady = true;
+  ensureAudio();
+  try { if (window.speechSynthesis && window.SpeechSynthesisUtterance) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } } catch (e) {}
+}
+document.addEventListener('pointerdown', unlockSound, { capture: true });
+document.addEventListener('touchend', unlockSound, { capture: true });
 
 /* full screen: request on open, but the player covers the screen either way */
 const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
@@ -364,10 +379,11 @@ function cancelCountdown() { clearInterval(cdTimer); cdTimer = null; $('count3')
 function showNum(n, ms = 1000) { $('count3').innerHTML = `<span style="animation-duration:${ms}ms">${n}</span>`; $('count3').classList.add('show'); }
 const WORDS = { 1: 'one', 2: 'two', 3: 'three', 5: 'five', 6: 'six', 7: 'seven', 8: 'eight' };
 function sayCount(n, last) {
+  // a click on every count, so the beat is always heard; the spoken word comes on top when it can
+  beep(last, true);
   if (set.speak && window.speechSynthesis && window.SpeechSynthesisUtterance) {
-    try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(WORDS[n] || String(n)); u.rate = 1.3; u.pitch = last ? 1.15 : 1; speechSynthesis.speak(u); return; } catch (e) {}
+    try { const u = new SpeechSynthesisUtterance(WORDS[n] || String(n)); u.rate = 1.4; u.pitch = last ? 1.15 : 1; u.volume = 1; speechSynthesis.speak(u); } catch (e) {}
   }
-  beep(last);
 }
 /* "5, 6, 7, 8" at the song's tempo (slower when you slow the song down), then play on the 1 */
 function countIn(done) {
