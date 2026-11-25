@@ -135,6 +135,10 @@ body.playing{overflow:hidden}
 .speeds{display:none;position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%);border-radius:18px;padding:8px;gap:4px;flex-wrap:wrap;justify-content:center;width:min(92vw,440px)}
 .speeds.show{display:flex}
 .speeds button{min-width:58px;height:40px;border-radius:12px;font-size:15px;font-weight:600;color:#fff}
+.tempo{flex-basis:100%;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:6px;padding-top:8px;border-top:.5px solid rgba(255,255,255,.15);font-size:14px;color:rgba(255,255,255,.75)}
+.tempo b{min-width:40px;text-align:center;font-size:18px;color:#fff;font-variant-numeric:tabular-nums}
+.speeds .tempo button{min-width:44px}
+.speeds .tempo .tap{min-width:64px;background:rgba(255,255,255,.16)}
 .speeds button.on{background:#fff;color:#000}
 .cam{position:absolute;right:max(16px,env(safe-area-inset-right));bottom:calc(env(safe-area-inset-bottom) + 16px);z-index:2;width:clamp(110px,15vw,170px);aspect-ratio:4/3;border-radius:14px;overflow:hidden;border:2px solid rgba(255,255,255,.3);background:#111;display:none;transition:bottom .35s;pointer-events:none}
 .player.ui .cam{bottom:calc(env(safe-area-inset-bottom) + 170px)}
@@ -198,6 +202,31 @@ button.item:active{background:var(--fill)}
 @keyframes blink{to{visibility:hidden}}
 #recBtn.rec{background:var(--red);color:#fff}
 .cam.live.recording{border-color:var(--red)!important}
+.tut{position:fixed;inset:0;z-index:35;background:rgba(0,0,0,.45);display:grid;place-items:center;padding:16px}
+.tcard{position:relative;width:min(100%,560px);max-height:92vh;overflow:auto;background:var(--bg);color:var(--label);border-radius:26px;padding:26px 22px 18px;box-shadow:0 30px 80px rgba(0,0,0,.35);animation:up .3s cubic-bezier(.2,.9,.3,1)}
+.tskip{position:absolute;right:12px;top:8px}
+.tstep{display:none;text-align:center}
+.tstep.on{display:block}
+.tstep h3{font-size:24px;line-height:1.2;margin:8px 0 8px}
+.tstep p{color:var(--sec);margin:0 auto;max-width:42ch}
+.tstep p b{color:var(--label)}
+.tart{width:96px;height:96px;margin:4px auto 12px;border-radius:22px;background:linear-gradient(#2e2e2f,#080808);color:#f2f2f7;display:grid;place-items:center;font-size:60px;box-shadow:0 10px 26px rgba(0,0,0,.25)}
+.tbig{font-size:60px;line-height:1.1;margin:4px 0 6px;color:var(--tint)}
+.tcam{position:relative;width:min(100%,360px);aspect-ratio:4/3;margin:14px auto 12px;border-radius:18px;overflow:hidden;background:#111;display:grid;place-items:center}
+.tcam video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.tcam .pbtn{margin:0;position:relative;z-index:1}
+.tchecks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-width:420px;margin:0 auto}
+.tchk{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:14px;padding:10px 12px;font-weight:600;font-size:15px;text-align:start;border:1.5px solid transparent}
+.tchk .e{font-size:26px}
+.tchk.ok{border-color:var(--ok)}
+.tchk.ok::after{content:"✓";margin-left:auto;color:var(--ok);font-weight:800}
+.tlist{text-align:start;color:var(--sec);padding-left:20px;margin:10px auto 0;max-width:46ch}
+.tlist li{margin:8px 0}
+.tlist b{color:var(--label)}
+.tfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:20px}
+.tfoot .pbtn{margin:0;min-width:110px}
+.tdots i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--sep);margin:0 3px}
+.tdots i.on{background:var(--tint)}
 .seg{display:flex;background:var(--fill);border-radius:9px;padding:2px}
 .seg button{flex:1;min-width:44px;height:32px;border-radius:7px;font-size:14px;font-weight:600}
 .seg button.on{background:var(--card);box-shadow:0 2px 6px rgba(0,0,0,.12)}
@@ -308,6 +337,23 @@ button.item:active{background:var(--fill)}
   <div class="cam" id="camBox"><video id="cam" playsinline muted></video><canvas id="ov"></canvas></div>
 </section>
 
+<div class="tut hidden" id="tut" role="dialog" aria-label="Welcome to Gesture Player">
+  <div class="tcard">
+    <button class="done tskip" id="tutSkip">Skip</button>
+    <div class="tstep" data-s="0"><div class="tart">G</div><h3>Welcome to Gesture Player</h3><p>Practise and teach dance without touching the screen. Your hand is the remote.</p></div>
+    <div class="tstep" data-s="1"><div class="tbig">＋</div><h3>Add something to play</h3><p>Tap <b>+</b> to add a video from Photos or Files, a song, or a YouTube link. Everything stays on this device.</p></div>
+    <div class="tstep" data-s="2"><h3>Try the gestures</h3><p class="thint" id="tutHint">Turn on the camera, stand about an arm’s length away, and hold each sign.</p>
+      <div class="tcam" id="tutCam"><button class="pbtn" id="tutCamBtn">Turn on camera</button></div>
+      <div class="tchecks" id="tutChecks"></div></div>
+    <div class="tstep" data-s="3"><h3>Made for dancing</h3><ul class="tlist">
+      <li><b>✌️ Wake it first.</b> Hold a peace sign for a second, then give a command within 5 seconds. Dancing won’t set anything off.</li>
+      <li><b>Hold, don’t flash.</b> Each sign needs a short hold.</li>
+      <li><b>🤗 Record from anywhere.</b> Cross your arms with hands on your shoulders for 1 second.</li>
+      <li><b>5‑6‑7‑8.</b> Play starts with a count-in. Set each song’s tempo in the speed menu.</li></ul></div>
+    <div class="tstep" data-s="4"><div class="tbig">🎉</div><h3>You’re ready</h3><p>Tap <b>?</b> any time to see every gesture. Have a great practice.</p></div>
+    <div class="tfoot"><button class="done" id="tutBack">Back</button><div class="tdots" id="tutDots"></div><button class="pbtn" id="tutNext">Next</button></div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <!-- ================= SHEETS ================= -->
@@ -338,7 +384,8 @@ button.item:active{background:var(--fill)}
   <div class="grab"></div><div class="shead"><b>Settings</b><button class="done" data-close>Done</button></div>
   <div class="group">
     <div class="item"><span>Dance-safe lock<small>Hold ✌️ to wake gestures</small></span><label class="sw"><input type="checkbox" id="oLock"><i></i></label></div>
-    <div class="item"><span>3‑2‑1 before play</span><label class="sw"><input type="checkbox" id="oCount"><i></i></label></div>
+    <div class="item"><span>Count-in<small>Before play starts. Set each song’s tempo in the speed menu.</small></span><div class="seg" id="oCountIn"><button data-v="off">Off</button><button data-v="321">3‑2‑1</button><button data-v="5678">5‑6‑7‑8</button></div></div>
+    <div class="item" id="oSpeakRow"><span>Say the counts out loud</span><label class="sw"><input type="checkbox" id="oSpeak"><i></i></label></div>
     <div class="item"><span>Show camera bubble</span><label class="sw"><input type="checkbox" id="oBubble"><i></i></label></div>
     <div class="item"><span>Swap left / right pointing</span><label class="sw"><input type="checkbox" id="oFlip"><i></i></label></div>
   </div>
@@ -359,6 +406,7 @@ button.item:active{background:var(--fill)}
   <div class="grab"></div><div class="shead"><b>Gestures</b><button class="done" data-close>Done</button></div>
   <div class="group" style="padding:12px 16px"><div class="gest" id="gestList"></div></div>
   <p class="foot">Turn the camera on in the player with the camera button. Watching while you dance, the remote stays locked until you show ✌️.</p>
+  <div class="group"><button class="item" id="helpTut"><span class="ic" style="background:#000"><b style="font-size:15px">G</b></span><span>Show the tutorial again</span></button></div>
 </div></div>
 
 <script src="app.js?v=__BUILD__"></script>

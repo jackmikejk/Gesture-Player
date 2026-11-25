@@ -17,7 +17,8 @@ Prop your iPad up, step back and practise. Pause, rewind, slow down or loop a se
 - **Dance-safe lock**: gestures stay off until you hold up ✌️, so dancing doesn't set anything off
 - **Mirror video** so moves match your left and right
 - **Loop a section** to learn steps: tap Loop (or hold 🤟) at the start, then again at the end, and fine-tune each point by half a second
-- **3‑2‑1 countdown** before play
+- **5‑6‑7‑8 count-in** before play, spoken out loud at each song's tempo (tap along to set it), or 3‑2‑1
+- **First-run tutorial** with a live check that the camera sees each gesture
 - **Speed** from 0.3× to 2× with normal pitch
 - **Music mode** for teaching and choreographing: control songs from Files (or YouTube) with the same gestures, with a big now-playing screen
 - **Record yourself** in 1080p while gestures keep working: front or back camera, room sound or the clean song, then save to Photos

@@ -10,8 +10,9 @@ const toast = (() => { let t; return msg => { const el = $('toast'); el.textCont
 
 /* ---------- settings ---------- */
 const LS = { get(k, d) { try { const x = localStorage.getItem('gp4_' + k); return x === null ? d : JSON.parse(x); } catch (e) { return d; } }, set(k, x) { try { localStorage.setItem('gp4_' + k, JSON.stringify(x)); } catch (e) {} } };
-const set = Object.assign({ lock: true, countdown: true, bubble: true, flip: false, skip: 10, near: 0.16, vol: 0.8, back: false, recAudio: 'mic', teach: true }, LS.get('settings', {}));
+const set = Object.assign({ lock: true, countMode: '5678', speak: true, bubble: true, flip: false, skip: 10, near: 0.16, vol: 0.8, back: false, recAudio: 'mic', teach: true }, LS.get('settings', {}));
 const saveSet = () => LS.set('settings', set);
+{ const s0 = LS.get('settings', {}); if (s0.countdown === false && !s0.countMode) set.countMode = 'off'; } // keep an old "no countdown" choice
 
 /* ---------- storage: IndexedDB, falls back to memory ---------- */
 const mem = { meta: new Map(), blob: new Map() };
@@ -174,7 +175,11 @@ $('delBtn').addEventListener('click', async () => {
 
 /* ---------- settings sheet ---------- */
 function bindSettings() {
-  const sw = { oLock: 'lock', oCount: 'countdown', oBubble: 'bubble', oFlip: 'flip', oTeach: 'teach' };
+  const sw = { oLock: 'lock', oSpeak: 'speak', oBubble: 'bubble', oFlip: 'flip', oTeach: 'teach' };
+  const ci = $('oCountIn').querySelectorAll('button');
+  const paintCI = () => { ci.forEach(b => b.classList.toggle('on', b.dataset.v === set.countMode)); $('oSpeakRow').classList.toggle('hidden', set.countMode === 'off'); };
+  ci.forEach(b => b.onclick = () => { set.countMode = b.dataset.v; saveSet(); paintCI(); });
+  paintCI();
   $('oBack').checked = !!set.back;
   $('oBack').onchange = async () => { set.back = $('oBack').checked; saveSet(); if (running && !rec) { await restartCam(false); } refreshUI(); };
   const ra = $('oRecAudio').querySelectorAll('button');
@@ -352,7 +357,25 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) saveP
 /* actions */
 let cdTimer = null;
 function cancelCountdown() { clearInterval(cdTimer); cdTimer = null; $('count3').classList.remove('show'); }
-function showNum(n) { $('count3').innerHTML = `<span>${n}</span>`; $('count3').classList.add('show'); }
+function showNum(n, ms = 1000) { $('count3').innerHTML = `<span style="animation-duration:${ms}ms">${n}</span>`; $('count3').classList.add('show'); }
+const WORDS = { 1: 'one', 2: 'two', 3: 'three', 5: 'five', 6: 'six', 7: 'seven', 8: 'eight' };
+function sayCount(n, last) {
+  if (set.speak && window.speechSynthesis && window.SpeechSynthesisUtterance) {
+    try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(WORDS[n] || String(n)); u.rate = 1.3; u.pitch = last ? 1.15 : 1; speechSynthesis.speak(u); return; } catch (e) {}
+  }
+  beep(last);
+}
+/* "5, 6, 7, 8" at the song's tempo (slower when you slow the song down), then play on the 1 */
+function countIn(done) {
+  const eight = set.countMode === '5678', seq = eight ? [5, 6, 7, 8] : [3, 2, 1];
+  const ms = eight ? Math.max(240, 60000 / ((cur && cur.bpm) || 100) / (curRate || 1)) : 1000;
+  let i = 0;
+  const tick = () => {
+    if (i < seq.length) { showNum(seq[i], ms); sayCount(seq[i], i === seq.length - 1); i++; return; }
+    cancelCountdown(); if (!eight && !set.speak) beep(true); done();
+  };
+  tick(); cdTimer = setInterval(tick, ms);
+}
 async function doPlay() { wantPlay = true; if (mode === 'file') v.muted = false; try { await P.play(); hasPlayed = true; refreshUI(); } catch (e) { wantPlay = false; toast('Tap ▶ once to start'); } }
 /* iPad only lets a video play hands-free after one play() from a tap: do a silent one */
 function unlock() { if (mode !== 'file' || hasPlayed || !v.paused) return; v.muted = true; const p = v.play(); if (p && p.then) p.then(() => { v.muted = false; if (!wantPlay) v.pause(); }).catch(() => { v.muted = false; }); }
@@ -360,10 +383,8 @@ function togglePlay() {
   if (!P.ready()) return toast(mode === 'yt' ? 'Tap the video once to start' : 'Loading…');
   if (cdTimer) { cancelCountdown(); toast('Cancelled'); return; }
   if (P.paused()) {
-    if (set.countdown && (mode === 'file' || hasPlayed)) {
-      let n = 3; showNum(n); beep();
-      cdTimer = setInterval(() => { n--; if (n > 0) { showNum(n); beep(); } else { cancelCountdown(); beep(true); doPlay(); } }, 1000);
-    } else doPlay();
+    if (set.countMode !== 'off' && (mode === 'file' || hasPlayed)) countIn(doPlay);
+    else doPlay();
   } else { P.pause(); toast('⏸ Pause'); }
 }
 const fmtT = s => { s = Math.max(0, s || 0); return Math.floor(s / 60) + ':' + (s % 60).toFixed(1).padStart(4, '0'); };
@@ -420,10 +441,23 @@ $('mirBtn').addEventListener('click', () => { if (!cur) return; cur.mirror = !cu
 $('rateBtn').addEventListener('click', () => {
   const box = $('speeds');
   if (box.classList.contains('show')) return box.classList.remove('show');
-  box.innerHTML = P.rates().map(r => `<button data-r="${r}" class="${Math.abs(r - curRate) < .001 ? 'on' : ''}">${fmtRate(r)}</button>`).join('');
+  box.innerHTML = P.rates().map(r => `<button data-r="${r}" class="${Math.abs(r - curRate) < .001 ? 'on' : ''}">${fmtRate(r)}</button>`).join('')
+    + (set.countMode === '5678' && cur ? `<div class="tempo"><span>Count-in tempo</span><button data-t="-5" aria-label="Slower tempo">−</button><b id="bpmTxt">${(cur.bpm || 100)}</b><span>BPM</span><button data-t="5" aria-label="Faster tempo">+</button><button data-t="tap" class="tap">Tap</button></div>` : '');
   box.classList.add('show'); showControls();
 });
-$('speeds').addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (!b) return; setRate(+b.dataset.r); $('speeds').classList.remove('show'); showControls(); });
+let taps = [];
+$('speeds').addEventListener('click', e => {
+  const t = e.target.closest('[data-t]');
+  if (t && cur) { // tempo: nudge, or tap along to the beat
+    if (t.dataset.t === 'tap') {
+      const now = performance.now(); taps = taps.filter(x => now - x < 2500); taps.push(now);
+      if (taps.length >= 3) { const gaps = taps.slice(1).map((x, k) => x - taps[k]), avg = gaps.reduce((a, b) => a + b, 0) / gaps.length; cur.bpm = Math.round(Math.min(220, Math.max(40, 60000 / avg))); }
+      else toast('Keep tapping to the beat');
+    } else cur.bpm = Math.min(220, Math.max(40, (cur.bpm || 100) + +t.dataset.t));
+    $('bpmTxt').textContent = cur.bpm || 100; DB.put(cur); showControls(); return;
+  }
+  const b = e.target.closest('[data-r]'); if (!b) return; setRate(+b.dataset.r); $('speeds').classList.remove('show'); showControls();
+});
 $('volIn').addEventListener('input', () => {
   if (isIOS && v === audEl) { $('volIn').value = Math.round(set.vol * 100); return toast('🔊 Use the side volume buttons'); } muted = false; set.vol = +$('volIn').value / 100; saveSet(); applyVol(); showControls(); });
 
@@ -625,8 +659,8 @@ function loop() {
       // use the biggest (closest) hand
       let i = 0; all.forEach((h, k) => { if (handSize(h) > handSize(all[i])) i = k; });
       const lm = all[i];
-      if (lm) step(handSize(lm) < +set.near ? 'far' : classify(cats[i] || 'None', lm), now);
-      else step('away', now);
+      const g = lm ? (handSize(lm) < +set.near ? 'far' : classify(cats[i] || 'None', lm)) : 'away';
+      step(g, now); tutSee(g, now);
       draw(lm);
     } catch (e) {}
     if (poser && now - lastPose > 200) { lastPose = now; try { checkCross(poser.detectForVideo(cam, now), now); } catch (e) {} }
@@ -714,6 +748,42 @@ $('recBtn').addEventListener('click', () => { ensureAudio(); toggleRec(); });
 setInterval(() => { if (rec) $('recTime').textContent = fmt((Date.now() - recStart) / 1000); }, 500);
 document.addEventListener('visibilitychange', () => { if (document.hidden && rec) stopRec(true); }); // iOS stops the camera in the background
 
+/* ---------- first-run tutorial ---------- */
+const tut = { open: false, step: 0, seen: {}, g: '', since: 0 };
+const TCHK = [['wake', '✌️', 'Peace sign'], ['palm', '✋', 'Open palm'], ['point', '👉', 'Point sideways'], ['loop', '🤟', 'Rock-on sign']];
+const tSteps = () => document.querySelectorAll('.tstep');
+function tutRender() {
+  const n = tSteps().length;
+  tSteps().forEach(s => s.classList.toggle('on', +s.dataset.s === tut.step));
+  $('tutDots').innerHTML = Array.from({ length: n }, (_, i) => `<i class="${i === tut.step ? 'on' : ''}"></i>`).join('');
+  $('tutBack').style.visibility = tut.step ? 'visible' : 'hidden';
+  $('tutNext').textContent = tut.step === n - 1 ? 'Start' : 'Next';
+  $('tutChecks').innerHTML = TCHK.map(([k, e, l]) => `<div class="tchk${tut.seen[k] ? ' ok' : ''}"><span class="e">${e}</span><span>${l}</span></div>`).join('');
+  $('tutCamBtn').classList.toggle('hidden', running);
+  // the camera picture moves onto the card while you practise
+  if (tut.step === 2) { if (cam.parentNode !== $('tutCam')) { $('tutCam').appendChild(cam); cam.play().catch(() => {}); } } // moving a video pauses it
+  else if (cam.parentNode !== $('camBox')) { $('camBox').prepend(cam); cam.play().catch(() => {}); }
+}
+function openTut() { closeSheet(); tut.open = true; tut.step = 0; tut.seen = {}; tut.g = ''; $('tut').classList.remove('hidden'); tutRender(); }
+function closeTut() { tut.open = false; $('tut').classList.add('hidden'); if (cam.parentNode !== $('camBox')) { $('camBox').prepend(cam); cam.play().catch(() => {}); } LS.set('tutDone', true); }
+$('tutNext').addEventListener('click', () => { if (tut.step >= tSteps().length - 1) return closeTut(); tut.step++; tutRender(); });
+$('tutBack').addEventListener('click', () => { if (tut.step) { tut.step--; tutRender(); } });
+$('tutSkip').addEventListener('click', closeTut);
+$('tutCamBtn').addEventListener('click', async () => { $('tutHint').textContent = 'Starting camera…'; await startCam(); tutRender(); $('tutHint').textContent = running ? 'Stand about an arm’s length away and hold each sign.' : 'The camera didn’t start. You can skip this and try it in the player.'; });
+$('helpTut').addEventListener('click', openTut);
+function tutSee(g, now) {
+  if (!tut.open || tut.step !== 2) return;
+  const k = g === 'right' || g === 'left' ? 'point' : g;
+  if (k !== tut.g) { tut.g = k; tut.since = now; }
+  const all = TCHK.every(c => tut.seen[c[0]]);
+  if (!all) $('tutHint').textContent = g === 'far' ? 'Come a little closer to the camera' : g === 'away' ? 'Show your hand to the camera' : 'Hold each sign for a moment';
+  const c = TCHK.find(x => x[0] === k);
+  if (c && !tut.seen[k] && now - tut.since > 400) {
+    tut.seen[k] = true; toast(c[1] + ' Got it'); tutRender();
+    if (TCHK.every(x => tut.seen[x[0]])) $('tutHint').textContent = 'Perfect, you’ve got them all!';
+  }
+}
+
 /* broken thumbnails (e.g. offline) fall back to the placeholder */
 document.addEventListener('error', e => { if (e.target && e.target.tagName === 'IMG') e.target.remove(); }, true);
 
@@ -741,4 +811,5 @@ if (/\/beta\//.test(location.pathname)) { const t = document.createElement('span
 
 /* ---------- start ---------- */
 applyVol(); refreshUI(); loadLibrary(); checkUpdate();
+if (!LS.get('tutDone', false)) openTut();
 }
