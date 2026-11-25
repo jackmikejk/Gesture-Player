@@ -14,7 +14,7 @@ const toast = (() => { let t; return msg => { const el = $('toast'); el.textCont
 
 /* ---------- settings ---------- */
 const LS = { get(k, d) { try { const x = localStorage.getItem('gp4_' + k); return x === null ? d : JSON.parse(x); } catch (e) { return d; } }, set(k, x) { try { localStorage.setItem('gp4_' + k, JSON.stringify(x)); } catch (e) {} } };
-const set = Object.assign({ lock: true, countMode: '5678', speak: true, bubble: true, flip: false, skip: 10, near: 0.16, vol: 0.8, back: false, recAudio: 'mic', teach: true }, LS.get('settings', {}));
+const set = Object.assign({ lock: true, countMode: '5678', speak: true, countEvery: false, bubble: true, flip: false, skip: 10, near: 0.16, vol: 0.8, back: false, recAudio: 'mic', teach: true }, LS.get('settings', {}));
 const saveSet = () => LS.set('settings', set);
 { const s0 = LS.get('settings', {}); if (s0.countdown === false && !s0.countMode) set.countMode = 'off'; } // keep an old "no countdown" choice
 
@@ -179,9 +179,9 @@ $('delBtn').addEventListener('click', async () => {
 
 /* ---------- settings sheet ---------- */
 function bindSettings() {
-  const sw = { oLock: 'lock', oSpeak: 'speak', oBubble: 'bubble', oFlip: 'flip', oTeach: 'teach' };
+  const sw = { oLock: 'lock', oSpeak: 'speak', oCountEvery: 'countEvery', oBubble: 'bubble', oFlip: 'flip', oTeach: 'teach' };
   const ci = $('oCountIn').querySelectorAll('button');
-  const paintCI = () => { ci.forEach(b => b.classList.toggle('on', b.dataset.v === set.countMode)); $('oSpeakRow').classList.toggle('hidden', set.countMode === 'off'); };
+  const paintCI = () => { ci.forEach(b => b.classList.toggle('on', b.dataset.v === set.countMode)); $('oSpeakRow').classList.toggle('hidden', set.countMode === 'off'); $('oEveryRow').classList.toggle('hidden', set.countMode === 'off'); };
   ci.forEach(b => b.onclick = () => { set.countMode = b.dataset.v; saveSet(); paintCI(); });
   paintCI();
   $('oBack').checked = !!set.back;
@@ -275,7 +275,7 @@ function exitFs() { if (fsEl()) { try { const p = (document.exitFullscreen || do
 async function openItem(id) {
   const m = items.find(x => x.id === id) || mem.meta.get(id); if (!m) return;
   ensureAudio(); enterFs();
-  cur = m; curRate = m.rate || 1; hasPlayed = false; resumeAt = m.pos && m.dur && m.pos < m.dur - 2 ? m.pos : 0;
+  cur = m; curRate = m.rate || 1; hasPlayed = false; needCount = true; resumeAt = m.pos && m.dur && m.pos < m.dur - 2 ? m.pos : 0;
   document.body.classList.add('playing');
   $('ptitle').textContent = m.name;
   const audio = kindOf(m) === 'audio';
@@ -403,7 +403,7 @@ function togglePlay() {
   if (!P.ready()) return toast(mode === 'yt' ? 'Tap the video once to start' : 'Loading…');
   if (cdTimer) { cancelCountdown(); toast('Cancelled'); return; }
   if (P.paused()) {
-    if (set.countMode !== 'off' && (mode === 'file' || hasPlayed)) countIn(doPlay);
+    if (set.countMode !== 'off' && (mode === 'file' || hasPlayed) && (set.countEvery || needCount || P.time() < 0.5)) { needCount = false; countIn(doPlay); }
     else doPlay();
   } else { P.pause(); toast('⏸ Pause'); }
 }
@@ -424,8 +424,10 @@ function nudgeLoop(which, d) {
   }
   DB.put(cur); refreshUI(); showControls();
 }
+let needCount = false; // set by anything that jumps; a plain pause/resume carries straight on
 function seekBy(dir) {
   if (!P.ready()) return;
+  needCount = true;
   const d = P.dur(); P.seekTo(Math.max(0, Math.min(d || Infinity, P.time() + set.skip * dir)));
   toast((dir > 0 ? '⏩ +' : '⏪ −') + set.skip + ' s');
 }
@@ -447,7 +449,7 @@ function loopTap(late = 0) {
   if (cur.loopA != null && cur.loopB != null) { cur.loopA = cur.loopB = null; toast('Loop off'); }
   else if (cur.loopA != null) {
     if (t <= cur.loopA + 0.5) { cur.loopA = t; toast('Loop start moved'); }
-    else { cur.loopB = t; P.seekTo(cur.loopA); toast('🔁 Looping'); }
+    else { cur.loopB = t; P.seekTo(cur.loopA); needCount = true; toast('🔁 Looping'); }
   } else { cur.loopA = t; toast('Loop start set'); }
   DB.put(cur); refreshUI();
 }
@@ -484,7 +486,7 @@ $('volIn').addEventListener('input', () => {
 /* scrubber */
 let dragging = false;
 $('seek').addEventListener('input', () => { dragging = true; const d = P.dur(); $('tNow').textContent = fmt(+$('seek').value / 1000 * d); $('fill').style.width = ($('seek').value / 10) + '%'; showControls(); });
-$('seek').addEventListener('change', () => { const d = P.dur(); if (d) P.seekTo(+$('seek').value / 1000 * d); dragging = false; });
+$('seek').addEventListener('change', () => { const d = P.dur(); if (d) { P.seekTo(+$('seek').value / 1000 * d); needCount = true; } dragging = false; });
 
 /* back: a tap when paused, press-and-hold when playing */
 {
