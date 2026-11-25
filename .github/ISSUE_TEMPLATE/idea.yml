@@ -1,0 +1,25 @@
+name: Suggest an idea
+description: A feature or change that would make practice or teaching easier
+title: "Idea: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like it to do?
+      placeholder: e.g. Let me save several loops per song and jump between them.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: When would you use it?
+      placeholder: e.g. Teaching a class, I switch between the intro and chorus a lot.
+  - type: input
+    id: device
+    attributes:
+      label: Device
+  - type: input
+    id: version
+    attributes:
+      label: App version

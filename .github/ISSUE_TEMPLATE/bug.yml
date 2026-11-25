@@ -1,0 +1,42 @@
+name: Report a problem
+description: Something isn't working the way it should
+title: "Problem: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping make Gesture Player better! A few short answers is plenty.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      placeholder: e.g. The song timer stays at 0:00 while the song plays.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: What were you doing just before?
+      placeholder: e.g. Added an mp3 from Files, opened it, pressed play.
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser
+      placeholder: e.g. iPad, Home Screen app
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Shown at the bottom of Settings
+  - type: textarea
+    id: logs
+    attributes:
+      label: Recent errors (filled in by the app)
+      render: text
+  - type: markdown
+    attributes:
+      value: Screenshots or a short screen recording help a lot. You can drag them into the box above.

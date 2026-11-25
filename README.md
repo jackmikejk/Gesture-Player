@@ -77,4 +77,8 @@ Made by [jackmikejk](https://github.com/jackmikejk). Released under the [MIT Lic
 
 Hand tracking by MediaPipe © Google, used under the Apache License 2.0 ([`vendor/mediapipe/LICENSE`](vendor/mediapipe/LICENSE)).
 
-Found a problem? See [SECURITY.md](SECURITY.md) for security issues, or open an issue for anything else.
+## Feedback
+
+Found a bug or have an idea? In the app, open **Settings → Report a problem** or **Suggest an idea**. It opens a short GitHub form with your device and app version already filled in. You can also [open an issue](https://github.com/jackmikejk/Gesture-Player/issues/new/choose) directly.
+
+The app keeps a short list of recent errors on your device only, and includes it in a problem report only if you send one. Security issues: see [SECURITY.md](SECURITY.md).

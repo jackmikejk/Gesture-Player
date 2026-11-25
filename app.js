@@ -6,6 +6,10 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const fmt = s => { s = Math.max(0, Math.floor(s || 0)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = String(s % 60).padStart(2, '0'); return h ? h + ':' + String(m).padStart(2, '0') + ':' + x : m + ':' + x; };
 const fmtRate = r => (+(+r).toFixed(2)) + '×';
 const ago = t => { if (!t) return 'Not played yet'; const d = (Date.now() - t) / 1000; if (d < 90) return 'Just now'; if (d < 3600) return Math.round(d / 60) + ' min ago'; if (d < 86400) return Math.round(d / 3600) + ' h ago'; const n = Math.round(d / 86400); return n === 1 ? 'Yesterday' : n + ' days ago'; };
+/* ---------- recent errors, kept on this device only, offered when reporting a problem ---------- */
+const logErr = msg => { try { const l = JSON.parse(localStorage.getItem('gp4_errs') || '[]'); l.push(new Date().toISOString().slice(0, 16).replace('T', ' ') + '  ' + String(msg).slice(0, 200)); localStorage.setItem('gp4_errs', JSON.stringify(l.slice(-15))); } catch (e) {} };
+addEventListener('error', e => logErr((e.message || 'error') + (e.filename ? ' @' + e.filename.split('/').pop() + ':' + e.lineno : '')));
+addEventListener('unhandledrejection', e => logErr('promise: ' + (e.reason && (e.reason.message || e.reason))));
 const toast = (() => { let t; return msg => { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(t); t = setTimeout(() => el.classList.remove('show'), 900); }; })();
 
 /* ---------- settings ---------- */
@@ -594,7 +598,7 @@ function draw(lm) {
   for (const p of lm) { octx.beginPath(); octx.arc(ox + p.x * vw * s, oy + p.y * vh * s, 2.5 * devicePixelRatio, 0, 7); octx.fill(); }
 }
 async function keepAwake() { try { if (!wakeLock && navigator.wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) {} }
-function flashErr(m) { camErr = m; refreshUI(); $('pill').classList.add('show'); setTimeout(() => { camErr = ''; refreshUI(); }, 5000); }
+function flashErr(m) { logErr('shown: ' + m); camErr = m; refreshUI(); $('pill').classList.add('show'); setTimeout(() => { camErr = ''; refreshUI(); }, 5000); }
 function openStream(hi) {
   // gestures only need a small picture; recording asks for 1080p (and the mic for room sound)
   const video = { facingMode: set.back ? 'environment' : 'user', width: { ideal: hi ? 1920 : 640 }, height: { ideal: hi ? 1080 : 480 }, frameRate: { ideal: 30 } };
@@ -789,6 +793,24 @@ document.addEventListener('error', e => { if (e.target && e.target.tagName === '
 
 /* ---------- updates: installed apps pick up new versions by themselves ---------- */
 const BUILD = '__BUILD__';
+/* ---------- report a problem / suggest an idea (GitHub issue forms, pre-filled) ---------- */
+function deviceInfo() {
+  const ua = navigator.userAgent, ios = /iP(hone|ad|od)/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const dev = /iPhone/.test(ua) ? 'iPhone' : ios ? 'iPad' : /Android/.test(ua) ? 'Android' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : 'Other';
+  const os = (ua.match(/OS (\d+[_.]\d+)/) || ua.match(/Android (\d+(\.\d+)?)/) || [])[1];
+  const br = /CriOS|Chrome/.test(ua) && !/Edg/.test(ua) ? 'Chrome' : /Edg/.test(ua) ? 'Edge' : /Firefox|FxiOS/.test(ua) ? 'Firefox' : /Safari/.test(ua) ? 'Safari' : 'browser';
+  const app = matchMedia('(display-mode: standalone)').matches || navigator.standalone ? 'Home Screen app' : br;
+  return dev + (os ? ' ' + os.replace('_', '.') : '') + ', ' + app;
+}
+function issueUrl(kind) {
+  const ver = (BUILD.startsWith('__') ? 'local' : BUILD) + (/\/beta\//.test(location.pathname) ? ' (beta)' : '');
+  const q = new URLSearchParams({ template: kind === 'bug' ? 'bug.yml' : 'idea.yml', device: deviceInfo(), version: ver });
+  if (kind === 'bug') { let l = []; try { l = JSON.parse(localStorage.getItem('gp4_errs') || '[]'); } catch (e) {} q.set('logs', l.length ? l.join('\n') : 'none'); }
+  return 'https://github.com/jackmikejk/Gesture-Player/issues/new?' + q.toString();
+}
+const setLinks = () => { $('repBug').href = issueUrl('bug'); $('repIdea').href = issueUrl('idea'); };
+for (const b of ['setBtn', 'pSet']) $(b).addEventListener('click', setLinks);
+setLinks();
 $('verTxt').textContent = 'Version ' + (BUILD.startsWith('__') ? 'local' : BUILD) + (/\/beta\//.test(location.pathname) ? ' (beta)' : '');
 let pendingUpdate = null;
 function applyUpdate(v) { toast('Updating…'); setTimeout(() => location.replace(location.pathname + '?v=' + encodeURIComponent(v)), 400); }
